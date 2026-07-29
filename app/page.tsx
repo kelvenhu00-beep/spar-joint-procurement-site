@@ -38,6 +38,22 @@ type Product = {
   originNote: string;
 };
 
+type ProcurementLens = {
+  consumerHook: string;
+  buyerPromise: string;
+  targetStores: string[];
+  retailPriceBand: string;
+  grossMarginBand: string;
+  trialOrderSuggestion: string;
+  displayPlan: string;
+  promoTrigger: string;
+  objectionHandling: string;
+  decisionScores: [string, number][];
+  demandSignals: string[];
+  purchaseTriggers: string[];
+  nextAction: string;
+};
+
 const products: Product[] = [
   {
     id: "ritter-dark-100g",
@@ -276,6 +292,134 @@ function productProgress(product: Product) {
   return Math.min(100, Math.round((product.currentBoxes / product.minBoxes) * 100));
 }
 
+const defaultProcurementLens: ProcurementLens = {
+  consumerHook: "进口商品身份清晰，适合先用少量门店验证动销。",
+  buyerPromise: "用小批量意向换取成柜机会，降低单企业独立采购压力。",
+  targetStores: ["区域旗舰店", "精品超市", "进口食品区"],
+  retailPriceBand: "待区域试销确认",
+  grossMarginBand: "待人工测算",
+  trialOrderSuggestion: "先选择 10-20 家门店试销，观察 4 周动销和复购。",
+  displayPlan: "用端架或进口商品小专区做集中陈列，避免分散在普通货架中失去识别。",
+  promoTrigger: "达到 70% 成团进度后提醒采购复核数量。",
+  objectionHandling: "如果担心动销，可先申请样品、门店试吃或小范围陈列测试。",
+  decisionScores: [["品牌拉力", 70], ["陈列吸引", 68], ["成团机会", 65], ["风险可控", 62], ["利润空间", 60]],
+  demandSignals: ["有明确进口身份", "规格适合超市销售", "可与现有品类形成补充"],
+  purchaseTriggers: ["样品确认", "达到 20 尺柜临界点", "同区域客户共同参与"],
+  nextAction: "提交小批量意向，等待平台汇总成团进度。"
+};
+
+const procurementLenses: Record<string, ProcurementLens> = {
+  "ritter-dark-100g": {
+    consumerHook: "消费者看到的是德国品牌、方形包装、成人巧克力口味，购买理由比普通甜巧克力更清楚。",
+    buyerPromise: "它适合做进口巧克力基础款，不靠单次爆发，而靠稳定货架存在和节庆组合销售。",
+    targetStores: ["精品超市", "社区中高端门店", "办公室客群门店"],
+    retailPriceBand: "RMB 16.90-22.90 / 板",
+    grossMarginBand: "平台测算 24%-34%",
+    trialOrderSuggestion: "建议先试 20-30 家门店，每店 2-3 箱，重点看夏季损耗和复购。",
+    displayPlan: "进口巧克力竖插陈列；节庆期可与咖啡、威化、礼袋做组合。",
+    promoTrigger: "情人节、圣诞、年货节、办公室零食主题。",
+    objectionHandling: "采购若担心夏季损耗，应先确认温控运输、到仓温度记录和门店陈列温度。",
+    decisionScores: [["品牌拉力", 82], ["陈列吸引", 78], ["成团机会", 61], ["风险可控", 58], ["利润空间", 70]],
+    demandSignals: ["德国品牌心智强", "100g 标准规格易定价", "适合节庆组合陈列"],
+    purchaseTriggers: ["温控方案确认", "报价有效期明确", "节庆档期前 60 天成团"],
+    nextAction: "先提交 80-120 箱意向，并要求平台补充夏季温控方案。"
+  },
+  "haribo-goldbears-175g": {
+    consumerHook: "消费者第一眼能识别彩色软糖和儿童零食场景，适合用来提升进口糖果区活跃度。",
+    buyerPromise: "它的价值是引流和稳定动销，不是高客单；适合区域超市快速补强进口糖果货架。",
+    targetStores: ["社区家庭型门店", "亲子客群门店", "节庆糖果陈列门店"],
+    retailPriceBand: "RMB 19.90-26.90 / 袋",
+    grossMarginBand: "平台测算 26%-36%",
+    trialOrderSuggestion: "建议先试 30-50 家门店，每店 2 箱，观察周末和节庆前动销。",
+    displayPlan: "挂袋区、儿童糖果区、收银台附近做彩色视觉集中陈列。",
+    promoTrigger: "儿童节、开学季、万圣节、圣诞糖果主题。",
+    objectionHandling: "若采购担心糖分和儿童食品宣传边界，应把页面重点放在品牌、口味和合规标签，不做功效表达。",
+    decisionScores: [["品牌拉力", 88], ["陈列吸引", 91], ["成团机会", 81], ["风险可控", 68], ["利润空间", 72]],
+    demandSignals: ["经典软糖产品", "包装视觉强", "亲子购物场景明确"],
+    purchaseTriggers: ["成团进度超过 80%", "节庆档期临近", "样品试吃反馈良好"],
+    nextAction: "优先追加采购意向，因为当前成团进度高，适合推动二次确认。"
+  },
+  "manner-neapolitan-75g": {
+    consumerHook: "粉色包装和奥地利威化身份能快速形成记忆点，适合激发采购对陈列效果的想象。",
+    buyerPromise: "它适合做进口零食区的漂亮小单品，客单压力低，适合试错。",
+    targetStores: ["精品超市", "女性客群门店", "写字楼周边门店"],
+    retailPriceBand: "RMB 9.90-13.90 / 包",
+    grossMarginBand: "平台测算 28%-38%",
+    trialOrderSuggestion: "建议先试 40 家门店，每店 2 箱，重点看收银台和进口零食区两个位置。",
+    displayPlan: "粉色小专区、下午茶主题、咖啡旁边交叉陈列。",
+    promoTrigger: "下午茶主题、女神节、办公室零食、会员日加购。",
+    objectionHandling: "如果担心破损，应先要求平台展示外箱抗压、装柜方式和到货破损处理规则。",
+    decisionScores: [["品牌拉力", 76], ["陈列吸引", 90], ["成团机会", 83], ["风险可控", 63], ["利润空间", 75]],
+    demandSignals: ["包装辨识度高", "价格带低于礼赠型进口食品", "威化口味接受度广"],
+    purchaseTriggers: ["样品到店陈列好看", "成团进度接近满柜", "可与茶咖形成组合"],
+    nextAction: "提交基础意向，并要求平台补充实物包装和外箱照片。"
+  },
+  "redbull-250ml": {
+    consumerHook: "消费者认知强，购买决策快，适合饮料冷柜和即时消费场景。",
+    buyerPromise: "如果授权和渠道清楚，它能成为进口饮料区的引流商品；但必须先过授权关。",
+    targetStores: ["便利型超市", "校园周边门店", "写字楼商圈门店"],
+    retailPriceBand: "RMB 9.90-13.90 / 罐",
+    grossMarginBand: "平台测算 18%-28%",
+    trialOrderSuggestion: "建议先做少量门店冷柜测试，不建议在授权未确认前大量提交。",
+    displayPlan: "冷柜黄金层、运动饮料旁边、收银台即时饮用区。",
+    promoTrigger: "高温季、考试季、运动场景、夜间消费门店。",
+    objectionHandling: "采购最大疑虑不是动销，而是授权、标签和渠道合法性；页面要把这三项前置。",
+    decisionScores: [["品牌拉力", 92], ["陈列吸引", 84], ["成团机会", 49], ["风险可控", 35], ["利润空间", 55]],
+    demandSignals: ["消费者认知高", "即饮场景强", "冷柜转化快"],
+    purchaseTriggers: ["销售授权确认", "中文标签确认", "渠道价格不冲突"],
+    nextAction: "暂不建议大额意向，先申请授权资料和渠道边界确认。"
+  },
+  "walkers-fingers-250g": {
+    consumerHook: "英国黄油酥饼能讲清楚礼赠、下午茶和进口食品质感，适合提升门店形象。",
+    buyerPromise: "它不是最低价走量商品，而是节庆和精品门店的价格带补充。",
+    targetStores: ["区域旗舰店", "精品超市", "节庆礼赠门店"],
+    retailPriceBand: "RMB 39.90-49.90 / 袋",
+    grossMarginBand: "平台测算 22%-32%",
+    trialOrderSuggestion: "建议围绕节庆档期试 20 家门店，每店 2 箱，同时测试礼赠组合。",
+    displayPlan: "英伦下午茶主题端架；与红茶、果酱、咖啡做组合陈列。",
+    promoTrigger: "中秋、圣诞、年货节、下午茶主题月。",
+    objectionHandling: "如果采购担心价格偏高，应把门店限定在中高端客群和礼赠场景，不做全渠道铺货。",
+    decisionScores: [["品牌拉力", 79], ["陈列吸引", 86], ["成团机会", 70], ["风险可控", 61], ["利润空间", 64]],
+    demandSignals: ["礼赠场景明确", "英国来源易讲故事", "可与茶饮组合销售"],
+    purchaseTriggers: ["节庆档期锁定", "门店客群匹配", "组合陈列物料确认"],
+    nextAction: "按节庆门店清单提交意向，不建议平均铺到所有门店。"
+  },
+  "twinings-eb-100ct": {
+    consumerHook: "英式早餐红茶有明确使用场景，适合家庭和办公室长期消费。",
+    buyerPromise: "它更像稳定复购品，不靠冲动购买；适合做进口茶饮基础 SKU。",
+    targetStores: ["精品超市", "会员店", "办公室客群门店"],
+    retailPriceBand: "RMB 69.90-89.90 / 盒",
+    grossMarginBand: "平台测算 20%-30%",
+    trialOrderSuggestion: "建议与饼干、果酱、咖啡一起测试欧洲早餐主题陈列。",
+    displayPlan: "早餐食品区、茶咖区、进口食品主题墙。",
+    promoTrigger: "早餐主题、办公室囤货、会员日、秋冬热饮季。",
+    objectionHandling: "如果担心茶包周转慢，应控制试点门店范围，并用组合陈列提高理解速度。",
+    decisionScores: [["品牌拉力", 83], ["陈列吸引", 66], ["成团机会", 41], ["风险可控", 72], ["利润空间", 58]],
+    demandSignals: ["家庭装规格", "早餐场景清楚", "适合组合陈列"],
+    purchaseTriggers: ["组合主题确认", "中文标签资料齐备", "试点门店客群匹配"],
+    nextAction: "不要单品孤立采购，建议与 Walkers 或 McVitie's 组成早餐主题意向。"
+  },
+  "mcvities-digestives-400g": {
+    consumerHook: "英国消化饼干是容易被消费者理解的家庭装饼干，适合做进口饼干走量基础款。",
+    buyerPromise: "它的优势在于高复购和场景普适，适合区域超市做进口饼干常规陈列。",
+    targetStores: ["社区家庭型门店", "会员店", "进口食品区成熟门店"],
+    retailPriceBand: "RMB 24.90-32.90 / 包",
+    grossMarginBand: "平台测算 23%-33%",
+    trialOrderSuggestion: "建议选择 30 家家庭客群门店，每店 3 箱，观察 4 周复购。",
+    displayPlan: "与牛奶、咖啡、红茶做早餐组合；进口饼干区做大包装陈列。",
+    promoTrigger: "早餐主题、会员囤货、家庭分享装促销。",
+    objectionHandling: "如果采购担心大包装价格竞争，需要和国产饼干区隔陈列，强调英国进口和早餐场景。",
+    decisionScores: [["品牌拉力", 77], ["陈列吸引", 70], ["成团机会", 67], ["风险可控", 69], ["利润空间", 70]],
+    demandSignals: ["家庭装规格", "早餐搭配场景", "进口饼干基础款"],
+    purchaseTriggers: ["门店已有进口饼干货架", "家庭客群占比高", "可做早餐组合"],
+    nextAction: "提交中等数量意向，并搭配 Twinings 做主题组合。"
+  }
+};
+
+function getLens(product: Product) {
+  return procurementLenses[product.id] ?? defaultProcurementLens;
+}
+
 export default function Home() {
   const [view, setView] = useState<View>("dashboard");
   const [selectedId, setSelectedId] = useState(products[1].id);
@@ -326,6 +470,7 @@ function Header({ eyebrow, title, action }: { eyebrow: string; title: string; ac
 function Dashboard({ sorted, openDetail, setView }: { sorted: Product[]; openDetail: (id: string) => void; setView: (view: View) => void }) {
   const topProduct = sorted[0];
   const pct = productProgress(topProduct);
+  const topLens = getLens(topProduct);
   return <>
     <Header eyebrow="企业采购工作台" title="进口商品联采系统" action={<><button className="ghost-button" onClick={() => setView("catalog")} type="button">进入商品目录</button><button className="primary-button" onClick={() => setView("intention")} type="button">提交意向</button></>} />
     <section className="status-row">
@@ -336,16 +481,34 @@ function Dashboard({ sorted, openDetail, setView }: { sorted: Product[]; openDet
     </section>
     <section className="content-grid">
       <div className="main-column">
+        <section className="panel decision-panel">
+          <div className="panel-head"><div><p className="eyebrow">采购机会判断</p><h2>让采购先看到“为什么值得现在关注”</h2></div></div>
+          <div className="purchase-funnel">
+            {[
+              ["有兴趣", "品牌、包装、产地和消费场景先吸引采购继续看。"],
+              ["能卖动", "用门店类型、陈列场景和受欢迎依据解释动销可能。"],
+              ["算得清", "把到仓成本、建议零售价、毛利带和费用状态拆开。"],
+              ["风险可控", "把授权、标签、破损、温控、保质期等问题前置。"],
+              ["现在行动", "用成团进度、节庆档期、样品和试单建议推动提交意向。"],
+            ].map(([title, text], index) => <div className="funnel-card" key={title}><span>{index + 1}</span><strong>{title}</strong><p>{text}</p></div>)}
+          </div>
+        </section>
         <section className="panel"><div className="panel-head"><div><p className="eyebrow">推荐商品</p><h2>本周重点联采单品</h2></div><button className="link-button" onClick={() => setView("catalog")} type="button">查看全部</button></div><div className="product-grid">{sorted.slice(0, 3).map((product) => <ProductCard key={product.id} product={product} openDetail={openDetail} />)}</div></section>
+        <section className="panel"><div className="panel-head"><div><p className="eyebrow">主题采购组合</p><h2>采购不是单品孤立决策，也可以按消费场景成组下意向</h2></div></div><div className="bundle-grid">{[
+          ["欧洲早餐组合", "Twinings + Walker's + McVitie's", "适合精品超市、会员店、办公室客群门店。"],
+          ["儿童糖果引流组合", "HARIBO + 低客单威化", "适合亲子客群、节庆糖果、收银台附近陈列。"],
+          ["进口零食基础组合", "Ritter Sport + Manner + McVitie's", "适合区域门店先建立进口食品基础货架。"],
+        ].map(([title, mix, text]) => <div className="bundle-card" key={title}><h3>{title}</h3><strong>{mix}</strong><p>{text}</p></div>)}</div></section>
         <section className="panel"><div className="panel-head"><div><p className="eyebrow">系统层级</p><h2>采购人员的点击路径</h2></div></div><div className="account-grid">{["工作台看推荐商品、成团提醒、待确认事项。", "商品目录按国家、品类、品牌筛选进口商品。", "商品详情查看包装、卖点、资料、成本和风险。", "采购意向提交数量、区域和备注，等待二次确认。"].map((text, index) => <div className="table-card" key={text}><h3>{index + 1}. {["工作台", "商品目录", "商品详情", "采购意向"][index]}</h3><p>{text}</p></div>)}</div></section>
       </div>
-      <aside className="right-column"><section className="panel progress-panel"><div className="panel-head"><div><p className="eyebrow">最高成团进度</p><h2>{topProduct.cnName}</h2></div><span className="privacy-pill">仅显示总量</span></div><ProgressRing pct={pct} /><div className="progress-meta"><div><span>已收集</span><strong>{topProduct.currentBoxes} 箱</strong></div><div><span>成团目标</span><strong>{topProduct.minBoxes} 箱</strong></div></div><button className="primary-button full" onClick={() => setView("progress")} type="button">查看成团进度</button></section><section className="panel notice"><h2>数据口径说明</h2><p>商品名、品牌、规格来自公开资料；箱规、预估费用、装柜量为平台规划测算字段，正式上线前必须由供应商和人工复核确认。</p></section></aside>
+      <aside className="right-column"><section className="panel progress-panel"><div className="panel-head"><div><p className="eyebrow">最高成团进度</p><h2>{topProduct.cnName}</h2></div><span className="privacy-pill">仅显示总量</span></div><ProgressRing pct={pct} /><div className="progress-meta"><div><span>已收集</span><strong>{topProduct.currentBoxes} 箱</strong></div><div><span>成团目标</span><strong>{topProduct.minBoxes} 箱</strong></div></div><button className="primary-button full" onClick={() => setView("progress")} type="button">查看成团进度</button></section><section className="panel action-panel"><p className="eyebrow">下一步建议</p><h2>{topLens.nextAction}</h2><p>{topLens.promoTrigger}</p></section><section className="panel notice"><h2>数据口径说明</h2><p>商品名、品牌、规格来自公开资料；箱规、预估费用、装柜量为平台规划测算字段，正式上线前必须由供应商和人工复核确认。</p></section></aside>
     </section>
   </>;
 }
 
 function ProductCard({ product, openDetail }: { product: Product; openDetail: (id: string) => void }) {
-  return <article className="product-card"><div className={`product-art ${product.color}`} /><div className="tag-row"><span>{product.country}</span><span>{product.category}</span></div><h3>{product.cnName}</h3><p>{product.interestTitle}</p><div className="price-line"><strong>{product.landed}</strong><span>预估到仓成本</span></div><button className="card-button" onClick={() => openDetail(product.id)} type="button">查看详情</button></article>;
+  const lens = getLens(product);
+  return <article className="product-card"><div className={`product-art ${product.color}`} /><div className="tag-row"><span>{product.country}</span><span>{product.category}</span></div><h3>{product.cnName}</h3><p>{lens.consumerHook}</p><div className="mini-metrics"><div><span>建议零售价</span><strong>{lens.retailPriceBand}</strong></div><div><span>毛利带</span><strong>{lens.grossMarginBand}</strong></div></div><div className="price-line"><strong>{product.landed}</strong><span>预估到仓成本</span></div><button className="card-button" onClick={() => openDetail(product.id)} type="button">查看详情</button></article>;
 }
 
 function Catalog({ openDetail }: { openDetail: (id: string) => void }) {
@@ -354,30 +517,37 @@ function Catalog({ openDetail }: { openDetail: (id: string) => void }) {
   const rows = products.filter((product) => (filter === "全部" || product.country === filter) && `${product.brand} ${product.name} ${product.cnName} ${product.country} ${product.category}`.toLowerCase().includes(keyword.toLowerCase()));
   return <>
     <Header eyebrow="商品目录" title="欧洲进口商品池" action={<label className="search"><span>搜索</span><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="输入品牌、商品名、国家" /></label>} />
-    <section className="panel"><div className="panel-head"><div><p className="eyebrow">筛选</p><h2>按国家查看</h2></div><div className="filters">{["全部", "德国", "奥地利", "英国"].map((item) => <button key={item} className={filter === item ? "filter active" : "filter"} onClick={() => setFilter(item)} type="button">{item}</button>)}</div></div><div className="catalog-list">{rows.map((product) => <article className="catalog-item" key={product.id}><div className={`mini-art ${product.color}`} /><div><h3>{product.cnName}</h3><p>{product.brand} · {product.name} · {product.spec}</p><p>{product.interestTitle}</p><div className="tag-row"><span>{product.country}</span><span>{product.category}</span><span>{product.supplierStatus}</span></div></div><div><strong>{product.caseSpec}</strong><p>平台箱规字段</p></div><div><strong>{product.landed}</strong><p>预估到仓成本</p></div><button className="link-button" onClick={() => openDetail(product.id)} type="button">详情</button></article>)}</div></section>
+    <section className="panel"><div className="panel-head"><div><p className="eyebrow">筛选</p><h2>按国家查看</h2></div><div className="filters">{["全部", "德国", "奥地利", "英国"].map((item) => <button key={item} className={filter === item ? "filter active" : "filter"} onClick={() => setFilter(item)} type="button">{item}</button>)}</div></div><div className="catalog-list">{rows.map((product) => { const lens = getLens(product); return <article className="catalog-item" key={product.id}><div className={`mini-art ${product.color}`} /><div><h3>{product.cnName}</h3><p>{product.brand} · {product.name} · {product.spec}</p><p>{lens.consumerHook}</p><div className="tag-row"><span>{product.country}</span><span>{product.category}</span><span>{product.supplierStatus}</span></div></div><div><strong>{lens.retailPriceBand}</strong><p>建议零售价</p></div><div><strong>{lens.grossMarginBand}</strong><p>平台测算毛利带</p></div><button className="link-button" onClick={() => openDetail(product.id)} type="button">详情</button></article>; })}</div></section>
   </>;
 }
 
 function Detail({ product, setView }: { product: Product; setView: (view: View) => void }) {
   const pct = productProgress(product);
+  const lens = getLens(product);
   return <>
     <Header eyebrow="商品详情" title={product.cnName} action={<><button className="ghost-button" onClick={() => setView("catalog")} type="button">返回商品目录</button><button className="primary-button" onClick={() => setView("intention")} type="button">提交采购意向</button></>} />
     <section className="content-grid">
       <div className="main-column">
-        <section className="panel product-hero-panel"><div className="detail-grid"><div className={`detail-art ${product.color}`} /><div className="product-story"><div className="tag-row">{product.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><p className="eyebrow">采购判断</p><h2>{product.interestTitle}</h2><p>{product.originNote}</p><div className="story-actions"><button className="primary-button" onClick={() => setView("intention")} type="button">提交采购意向</button><a className="ghost-button" href={product.sourceUrl} target="_blank" rel="noreferrer">查看公开来源</a></div></div></div></section>
+        <section className="panel product-hero-panel"><div className="detail-grid"><div className={`detail-art ${product.color}`} /><div className="product-story"><div className="tag-row">{product.tags.map((tag) => <span key={tag}>{tag}</span>)}</div><p className="eyebrow">采购判断</p><h2>{lens.consumerHook}</h2><p>{lens.buyerPromise}</p><div className="story-actions"><button className="primary-button" onClick={() => setView("intention")} type="button">提交采购意向</button><a className="ghost-button" href={product.sourceUrl} target="_blank" rel="noreferrer">查看公开来源</a></div></div></div></section>
         <section className="panel"><div className="panel-head"><div><p className="eyebrow">为什么值得采购</p><h2>采购员最先需要判断的商品兴趣点</h2></div></div><div className="reason-grid">{product.buyerReasons.map((reason, index) => <div className="reason-card" key={reason}><span>0{index + 1}</span><p>{reason}</p></div>)}</div></section>
+        <section className="panel"><div className="panel-head"><div><p className="eyebrow">收益与试单设计</p><h2>把“想买”转化成“敢先试”</h2></div><span className="source-pill">平台测算</span></div><div className="commercial-grid"><div className="commercial-card strong-card"><span>建议零售价</span><strong>{lens.retailPriceBand}</strong><p>用于采购内部测算价格带，不作为最终销售建议。</p></div><div className="commercial-card"><span>毛利带</span><strong>{lens.grossMarginBand}</strong><p>基于预估到仓成本的粗测，需结合区域售价复核。</p></div><div className="commercial-card"><span>试单建议</span><strong>{lens.trialOrderSuggestion}</strong></div><div className="commercial-card"><span>适配门店</span><div className="tag-row">{lens.targetStores.map((store) => <span key={store}>{store}</span>)}</div></div></div></section>
         <section className="panel"><div className="panel-head"><div><p className="eyebrow">{product.brand} · {product.country} · {product.category}</p><h2>{product.name}</h2></div><span className="review-badge">{product.supplierStatus}</span></div><div className="detail-grid"><div className={`detail-art ${product.color}`} /><div className="spec-list">{[["英文商品名", product.name], ["规格", product.spec], ["整箱规格", product.caseSpec], ["国家", product.country], ["起团基准", "20 尺柜"], ["装柜箱数", `${product.containerBoxes} 箱`], ["预计周期", product.leadTime], ["保质期", product.shelf]].map(([label, value]) => <div key={label}><span>{label}</span><strong>{value}</strong></div>)}</div></div></section>
-        <section className="panel"><div className="panel-head"><div><p className="eyebrow">包装、陈列与受欢迎程度</p><h2>帮助采购判断这件商品能不能卖</h2></div></div><div className="merch-grid">{[["外观包装", product.packageLook], ["陈列场景", product.shelfScenario], ["受欢迎程度依据", product.popularityEvidence], ["采购风险", product.buyerRisk]].map(([label, text]) => <div className="source-card" key={label}><h3>{label}</h3><p>{text}</p></div>)}</div></section>
+        <section className="panel"><div className="panel-head"><div><p className="eyebrow">包装、陈列与受欢迎程度</p><h2>帮助采购判断这件商品能不能卖</h2></div></div><div className="merch-grid">{[["外观包装", product.packageLook], ["陈列方案", lens.displayPlan], ["促销触发点", lens.promoTrigger], ["受欢迎程度依据", product.popularityEvidence], ["需求信号", lens.demandSignals.join("；")], ["采购风险", product.buyerRisk]].map(([label, text]) => <div className="source-card" key={label}><h3>{label}</h3><p>{text}</p></div>)}</div></section>
         <section className="panel"><div className="panel-head"><div><p className="eyebrow">费用拆解</p><h2>采购企业看到的成本口径</h2></div><span className="source-pill">预估字段</span></div><div className="cost-board">{[["出厂参考价", product.factoryPrice], ["国际运输预估", product.freight], ["进口税费预估", product.tax], ["国内分拣配送", product.domestic], ["预估到仓成本", product.landed]].map(([label, value], index) => <div className={index === 4 ? "total" : ""} key={label}><span>{label}</span><strong>{value}</strong><small>{index === 4 ? "非锁定成交价" : "待人工复核"}</small></div>)}</div></section>
+        <section className="panel"><div className="panel-head"><div><p className="eyebrow">异议处理</p><h2>采购内部讨论时常见的顾虑</h2></div></div><div className="objection-card"><strong>{lens.objectionHandling}</strong><p>页面应帮助采购提前准备给品类负责人、门店运营、财务和管理层的解释，而不是只展示商品图片和价格。</p></div></section>
         <section className="panel"><div className="panel-head"><div><p className="eyebrow">资料依据</p><h2>公开资料与待核验字段</h2></div></div><div className="source-list"><div className="source-card"><h3>公开资料</h3><p>{product.source}</p><p><a href={product.sourceUrl} target="_blank" rel="noreferrer">打开来源页面</a></p></div><div className="source-card"><h3>平台测算字段</h3><p>整箱规格、出厂参考价、运输费用、税费、国内配送、服务费、装柜箱数均为系统原型展示字段，正式上线前必须由品牌方、供应商、货代、报关和内部人工复核。</p></div></div></section>
       </div>
-      <aside className="right-column"><section className="panel progress-panel"><div className="panel-head"><div><p className="eyebrow">成团进度</p><h2>20 尺柜意向量</h2></div><span className="privacy-pill">仅显示总量</span></div><ProgressRing pct={pct} /><div className="progress-meta"><div><span>已收集</span><strong>{product.currentBoxes} 箱</strong></div><div><span>成团目标</span><strong>{product.minBoxes} 箱</strong></div></div><button className="primary-button full" onClick={() => setView("intention")} type="button">提交采购意向</button></section><section className="panel notice"><h2>企业隐私规则</h2><p>企业端只显示总体成团进度，不展示其他企业名称、参与数量和采购条件。</p></section></aside>
+      <aside className="right-column"><section className="panel progress-panel"><div className="panel-head"><div><p className="eyebrow">成团进度</p><h2>20 尺柜意向量</h2></div><span className="privacy-pill">仅显示总量</span></div><ProgressRing pct={pct} /><div className="progress-meta"><div><span>已收集</span><strong>{product.currentBoxes} 箱</strong></div><div><span>成团目标</span><strong>{product.minBoxes} 箱</strong></div></div><button className="primary-button full" onClick={() => setView("intention")} type="button">提交采购意向</button></section><section className="panel"><div className="panel-head"><div><p className="eyebrow">采购决策评分</p><h2>五个维度看是否值得推进</h2></div></div><ScoreBars scores={lens.decisionScores} /></section><section className="panel action-panel"><p className="eyebrow">下一步动作</p><h2>{lens.nextAction}</h2><div className="trigger-list">{lens.purchaseTriggers.map((item) => <span key={item}>{item}</span>)}</div></section><section className="panel notice"><h2>企业隐私规则</h2><p>企业端只显示总体成团进度，不展示其他企业名称、参与数量和采购条件。</p></section></aside>
     </section>
   </>;
 }
 
 function ProgressRing({ pct }: { pct: number }) {
   return <><div className="progress-ring" style={{ "--progress": `${pct}%` } as React.CSSProperties}><div><strong>{pct}%</strong><span>当前进度</span></div></div><div className="progress-bar" style={{ "--progress": `${pct}%` } as React.CSSProperties}><span /></div></>;
+}
+
+function ScoreBars({ scores }: { scores: [string, number][] }) {
+  return <div className="score-list">{scores.map(([label, score]) => <div className="score-row" key={label}><div><strong>{label}</strong><span>{score}</span></div><div className="score-track"><i style={{ width: `${score}%` }} /></div></div>)}</div>;
 }
 
 function ProgressList({ openDetail }: { openDetail: (id: string) => void }) {
