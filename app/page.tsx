@@ -2,14 +2,25 @@
 
 import { useMemo, useState } from "react";
 
-type View = "dashboard" | "catalog" | "progress" | "intention" | "detail" | "account" | "reports";
+type View =
+  | "login"
+  | "dashboard"
+  | "catalog"
+  | "procurement"
+  | "progress"
+  | "intention"
+  | "detail"
+  | "clients"
+  | "reports"
+  | "messages"
+  | "help";
 
 type Product = {
   id: string;
   cnName: string;
   brand: string;
   enName: string;
-  country: "德国" | "奥地利" | "英国";
+  country: "德国" | "奥地利" | "英国" | "意大利";
   flag: string;
   category: string;
   spec: string;
@@ -29,37 +40,15 @@ type Product = {
 
 const products: Product[] = [
   {
-    id: "manner-neapolitan-75g",
-    cnName: "曼纳原味榛子威化 75g",
-    brand: "Manner",
-    enName: "Original Neapolitan Wafers 75g",
-    country: "奥地利",
-    flag: "🇦🇹",
-    category: "威化饼干",
-    spec: "75g / 包",
-    caseSpec: "12 包 / 箱",
-    shelfLife: "12 个月",
-    price: "¥ 107.60 / 箱",
-    priceBand: "RMB 9.90-13.90 / 包",
-    gross: "28%~38%",
-    moq: "MOQ 10 箱起订",
-    currentBoxes: 3820,
-    targetBoxes: 4600,
-    tags: ["奥地利", "威化饼干", "品牌资料较完整"],
-    summary: "粉色包装和奥地利威化身份能快速形成记忆点，适合激发采购对陈列效果的想象。",
-    decisionNote: "适合下午茶、女神节、办公室零食、会员日加购等场景，可作为进口零食基础款。",
-    image: "/product-assets/manner.png",
-  },
-  {
     id: "haribo-goldbears-175g",
-    cnName: "哈瑞宝金熊果汁软糖 175g",
+    cnName: "HARIBO 哈瑞宝金熊软糖",
     brand: "HARIBO",
     enName: "Goldbears 175g",
     country: "德国",
     flag: "🇩🇪",
     category: "糖果",
-    spec: "175g / 袋",
-    caseSpec: "24 袋 / 箱",
+    spec: "175g*30袋/箱",
+    caseSpec: "30 袋 / 箱",
     shelfLife: "18 个月",
     price: "¥ 178.50 / 箱",
     priceBand: "RMB 19.90-26.90 / 袋",
@@ -67,20 +56,42 @@ const products: Product[] = [
     moq: "MOQ 8 箱起订",
     currentBoxes: 2110,
     targetBoxes: 2600,
-    tags: ["德国", "糖果", "需确认进口授权"],
+    tags: ["德国", "糖果"],
     summary: "消费者第一眼能识别彩色软糖和儿童零食场景，适合用来提升进口糖果区活跃度。",
     decisionNote: "适合亲子客群、节庆糖果、收银台附近陈列；正式推进前需要确认进口授权。",
     image: "/product-assets/haribo.png",
   },
   {
+    id: "manner-neapolitan-75g",
+    cnName: "Manner 曼纳威化饼干",
+    brand: "Manner",
+    enName: "Original Neapolitan Wafers 75g",
+    country: "奥地利",
+    flag: "🇦🇹",
+    category: "威化饼干",
+    spec: "75g*24盒/箱",
+    caseSpec: "24 盒 / 箱",
+    shelfLife: "12 个月",
+    price: "¥ 107.60 / 箱",
+    priceBand: "RMB 9.90-13.90 / 包",
+    gross: "28%~38%",
+    moq: "MOQ 10 箱起订",
+    currentBoxes: 3820,
+    targetBoxes: 4600,
+    tags: ["奥地利", "威化饼干"],
+    summary: "粉色包装和奥地利威化身份能快速形成记忆点，适合激发采购对陈列效果的想象。",
+    decisionNote: "适合下午茶、女神节、办公室零食、会员日加购等场景，可作为进口零食基础款。",
+    image: "/product-assets/manner.png",
+  },
+  {
     id: "walkers-fingers-250g",
-    cnName: "沃克斯黄油酥饼条 250g",
-    brand: "Walker's",
+    cnName: "JACOB'S 沃克斯黄油酥饼",
+    brand: "JACOB'S",
     enName: "Shortbread Fingers 250g",
     country: "英国",
     flag: "🇬🇧",
     category: "饼干",
-    spec: "250g / 盒",
+    spec: "250g*24盒/箱",
     caseSpec: "24 盒 / 箱",
     shelfLife: "15 个月",
     price: "¥ 382.40 / 箱",
@@ -89,113 +100,138 @@ const products: Product[] = [
     moq: "MOQ 6 箱起订",
     currentBoxes: 1460,
     targetBoxes: 2100,
-    tags: ["英国", "饼干", "需确认进口标签资料"],
+    tags: ["英国", "饼干"],
     summary: "英国黄油酥饼身份清晰，适合提升门店进口食品质感，并承接节庆礼赠需求。",
     decisionNote: "适合精品超市、会员店、办公零食区和下午茶组合陈列，价格带要结合区域客群验证。",
     image: "/product-assets/walkers.png",
   },
   {
-    id: "ritter-dark-100g",
-    cnName: "瑞特斯波德黑巧克力 100g",
+    id: "twinings-eb-100ct",
+    cnName: "Twinings 川宁伯爵红茶",
+    brand: "Twinings",
+    enName: "Earl Grey Tea",
+    country: "英国",
+    flag: "🇬🇧",
+    category: "茶叶",
+    spec: "50g*6盒/箱",
+    caseSpec: "6 盒 / 箱",
+    shelfLife: "24 个月",
+    price: "¥ 165.30 / 箱",
+    priceBand: "RMB 69.90-89.90 / 盒",
+    gross: "28%~38%",
+    moq: "MOQ 12 箱起订",
+    currentBoxes: 980,
+    targetBoxes: 2400,
+    tags: ["英国", "茶叶"],
+    summary: "标准英式红茶，消费者认知面宽，适合家庭及办公饮用场景。",
+    decisionNote: "适合早餐食品区、进口茶饮区和办公室团购场景，需重点确认中文标签资料。",
+    image: "/product-assets/twinings.png",
+  },
+  {
+    id: "ritter-milk-100g",
+    cnName: "Ritter Sport 瑞特斯波德牛奶巧克力",
     brand: "Ritter Sport",
-    enName: "Dark Chocolate 100g",
+    enName: "Fine Milk Chocolate 100g",
     country: "德国",
     flag: "🇩🇪",
     category: "巧克力",
-    spec: "100g / 板",
-    caseSpec: "12 板 / 箱",
+    spec: "100g*12块/箱",
+    caseSpec: "12 块 / 箱",
     shelfLife: "12 个月",
-    price: "¥ 128.90 / 箱",
+    price: "¥ 156.00 / 箱",
     priceBand: "RMB 16.90-22.90 / 板",
     gross: "24%~34%",
     moq: "MOQ 10 箱起订",
     currentBoxes: 3180,
     targetBoxes: 5200,
-    tags: ["德国", "巧克力", "品牌资料待审核"],
-    summary: "消费者喜爱的经典高品质黑巧，方形包装、成人巧克力口味，购买理由比普通甜巧克力更清楚。",
-    decisionNote: "适合进口巧克力区、办公室零食区、节庆组合；夏季需要确认温控物流方案。",
-    image: "/product-assets/ritter.png",
+    tags: ["德国", "巧克力"],
+    summary: "方形巧克力包装识别强，适合进口巧克力基础陈列和节庆组合。",
+    decisionNote: "夏季需要确认温控物流方案，中文标签和剩余保质期要进入采购前核验。",
+    image: "/product-assets/ritter-milk.png",
   },
   {
-    id: "mcvities-digestives-400g",
-    cnName: "麦维他原味消化饼干 400g",
-    brand: "McVitie's",
-    enName: "Original Digestives 400g",
-    country: "英国",
-    flag: "🇬🇧",
-    category: "饼干",
-    spec: "400g / 包",
-    caseSpec: "12 包 / 箱",
-    shelfLife: "12 个月",
-    price: "¥ 226.80 / 箱",
-    priceBand: "RMB 24.90-32.90 / 包",
-    gross: "23%~33%",
-    moq: "MOQ 8 箱起订",
-    currentBoxes: 1750,
-    targetBoxes: 2600,
-    tags: ["英国", "饼干", "家庭分享装"],
-    summary: "经典英式消化饼干，家庭装规格更适合区域超市日常复购货架。",
-    decisionNote: "适合早餐、办公室茶点和家庭装区域，可与茶饮形成组合陈列。",
-    image: "/product-assets/mcvities.png",
-  },
-  {
-    id: "redbull-250ml",
-    cnName: "红牛能量饮料 250ml",
-    brand: "Red Bull",
-    enName: "Energy Drink 250ml",
-    country: "奥地利",
-    flag: "🇦🇹",
-    category: "饮料",
-    spec: "250ml / 罐",
-    caseSpec: "24 罐 / 箱",
+    id: "lavazza-coffee-250g",
+    cnName: "Lavazza 拉瓦萨意式浓缩咖啡粉",
+    brand: "Lavazza",
+    enName: "Espresso Ground Coffee 250g",
+    country: "意大利",
+    flag: "🇮🇹",
+    category: "咖啡",
+    spec: "250g*12罐/箱",
+    caseSpec: "12 罐 / 箱",
     shelfLife: "18 个月",
-    price: "¥ 265.80 / 箱",
-    priceBand: "RMB 9.90-13.90 / 罐",
-    gross: "18%~28%",
-    moq: "MOQ 12 箱起订",
-    currentBoxes: 890,
+    price: "¥ 312.80 / 箱",
+    priceBand: "RMB 39.90-49.90 / 罐",
+    gross: "25%~35%",
+    moq: "MOQ 6 箱起订",
+    currentBoxes: 740,
     targetBoxes: 1800,
-    tags: ["奥地利", "饮料", "需确认中国销售权限"],
-    summary: "消费者认知强，购买决策快，适合饮料冷柜和即时消费场景。",
-    decisionNote: "品牌授权和渠道边界必须在正式采购前确认，适合先做权限核验商品。",
-    image: "/product-assets/redbull.png",
+    tags: ["意大利", "咖啡"],
+    summary: "意式咖啡粉适合家庭咖啡和办公室茶水间场景，能与饼干茶点组合销售。",
+    decisionNote: "适合精品超市、会员店和办公消费渠道，重点确认烘焙日期和中文标签。",
+    image: "/product-assets/lavazza.png",
   },
   {
-    id: "twinings-eb-100ct",
-    cnName: "川宁英式早餐红茶 100 袋",
-    brand: "Twinings",
-    enName: "English Breakfast 100ct",
-    country: "英国",
-    flag: "🇬🇧",
-    category: "茶叶",
-    spec: "100 袋 / 盒",
-    caseSpec: "6 盒 / 箱",
-    shelfLife: "24 个月",
-    price: "¥ 428.60 / 箱",
-    priceBand: "RMB 69.90-89.90 / 盒",
-    gross: "28%~38%",
-    moq: "MOQ 6 箱起订",
-    currentBoxes: 980,
-    targetBoxes: 2400,
-    tags: ["英国", "茶叶", "品牌资料较完整"],
-    summary: "标准英式早餐茶，消费者认知面宽，适合家庭及办公饮用场景。",
-    decisionNote: "适合早餐食品区、进口茶饮区和办公室团购场景，需重点确认中文标签资料。",
-    image: "/product-assets/twinings.png",
+    id: "persil-laundry-1-35l",
+    cnName: "Persil 宝莹深层洁净洗衣液",
+    brand: "Persil",
+    enName: "Deep Clean Laundry Liquid",
+    country: "德国",
+    flag: "🇩🇪",
+    category: "洗衣液",
+    spec: "1.35L*6瓶/箱",
+    caseSpec: "6 瓶 / 箱",
+    shelfLife: "36 个月",
+    price: "¥ 194.50 / 箱",
+    priceBand: "RMB 39.90-59.90 / 瓶",
+    gross: "20%~30%",
+    moq: "MOQ 8 箱起订",
+    currentBoxes: 360,
+    targetBoxes: 1500,
+    tags: ["德国", "洗衣液"],
+    summary: "进口家庭清洁品适合拉开日化货架层次，家庭装规格有稳定复购属性。",
+    decisionNote: "需确认日化进口合规资料、中文标签和外箱破损控制。",
+    image: "/product-assets/persil.png",
+  },
+  {
+    id: "nivea-body-400ml",
+    cnName: "NIVEA 妮维雅深层滋润身体乳",
+    brand: "NIVEA",
+    enName: "Rich Nourishing Body Milk 400ml",
+    country: "德国",
+    flag: "🇩🇪",
+    category: "身体乳",
+    spec: "400ml*12瓶/箱",
+    caseSpec: "12 瓶 / 箱",
+    shelfLife: "30 个月",
+    price: "¥ 268.60 / 箱",
+    priceBand: "RMB 49.90-69.90 / 瓶",
+    gross: "22%~32%",
+    moq: "MOQ 10 箱起订",
+    currentBoxes: 520,
+    targetBoxes: 1600,
+    tags: ["德国", "身体乳"],
+    summary: "高认知身体护理品牌，适合进口个护区和冬季滋润主题陈列。",
+    decisionNote: "需确认化妆品/个护进口资料、标签备案和区域价格体系。",
+    image: "/product-assets/nivea.png",
   },
 ];
-
-const countryTabs = ["全部", "德国", "奥地利", "英国"];
 
 const navItems: { label: string; view: View; icon: string; badge?: string; dividerBefore?: boolean }[] = [
   { label: "工作台", view: "dashboard", icon: "⌂" },
   { label: "商品目录", view: "catalog", icon: "▤" },
   { label: "成团进度", view: "progress", icon: "▧" },
+  { label: "采购进度", view: "procurement", icon: "◇" },
   { label: "采购意向", view: "intention", icon: "◇" },
-  { label: "企业账户", view: "account", icon: "♙" },
+  { label: "企业客户", view: "clients", icon: "♙" },
   { label: "数据报表", view: "reports", icon: "▥" },
-  { label: "消息中心", view: "account", icon: "○", badge: "3", dividerBefore: true },
-  { label: "帮助中心", view: "account", icon: "?" },
+  { label: "消息中心", view: "messages", icon: "○", badge: "3", dividerBefore: true },
+  { label: "帮助中心", view: "help", icon: "?" },
 ];
+
+const catalogCategories = ["全部商品", "休闲食品", "饮料冲调", "粮油调味", "个人护理", "家庭清洁", "母婴用品", "宠物用品", "美妆护肤", "保健品", "酒类", "更多⌄"];
+
+const countryTabs = ["全部", "德国", "奥地利", "英国", "意大利"];
 
 function progressOf(product: Product) {
   return Math.round((product.currentBoxes / product.targetBoxes) * 100);
@@ -254,11 +290,11 @@ function AppShell({
             ☰
           </button>
           <div className="topbar-actions">
-            <button className="icon-button alert" type="button" aria-label="消息">
+            <button className="icon-button alert" type="button" aria-label="消息" onClick={() => setView("messages")}>
               ♧
               <span>3</span>
             </button>
-            <button className="icon-button" type="button" aria-label="帮助">
+            <button className="icon-button" type="button" aria-label="帮助" onClick={() => setView("help")}>
               ?
             </button>
             <div className="user-chip">
@@ -282,6 +318,55 @@ function ProductImage({ product, size = "card" }: { product: Product; size?: "ca
   );
 }
 
+function LoginPage({ setView }: { setView: (view: View) => void }) {
+  return (
+    <main className="login-page">
+      <section className="login-brand">
+        <div className="spar-mark large">
+          <span />
+        </div>
+        <div>
+          <strong>SPAR 联采</strong>
+          <p>进口商品 B2B 平台</p>
+        </div>
+      </section>
+      <section className="login-card">
+        <h1>欢迎登录 SPAR 联采工作台</h1>
+        <p>专业的进口商品采购与供应链协同平台</p>
+        <label>
+          <span>账号</span>
+          <input placeholder="请输入手机号 / 邮箱 / 账号" />
+        </label>
+        <label>
+          <span>密码</span>
+          <input placeholder="请输入密码" type="password" />
+        </label>
+        <div className="login-options">
+          <label>
+            <input type="checkbox" /> 记住我
+          </label>
+          <button type="button">忘记密码?</button>
+        </div>
+        <button className="primary-button full" type="button" onClick={() => setView("dashboard")}>
+          登录
+        </button>
+        <div className="login-divider">或</div>
+        <button className="outline-button full" type="button" onClick={() => setView("dashboard")}>
+          SSO 单点登录
+        </button>
+        <small>
+          还没有账号？ <b>联系您的客户经理开通</b>
+        </small>
+      </section>
+      <footer className="login-footer">
+        <span>© 2024 SPAR 联采 | 进口商品 B2B 平台</span>
+        <span>隐私政策 | 用户协议 | 帮助中心</span>
+        <span>简体中文⌄</span>
+      </footer>
+    </main>
+  );
+}
+
 function Dashboard({
   setView,
   setSelectedId,
@@ -290,18 +375,18 @@ function Dashboard({
   setSelectedId: (id: string) => void;
 }) {
   const featured = products.slice(0, 3);
-  const topProgress = products[0];
+  const topProgress = products[1];
   const pct = progressOf(topProgress);
 
   return (
     <>
       <section className="dashboard-title">
         <h1>工作台</h1>
-        <p>下午好，王经理 👋</p>
+        <p>下午好，王经理</p>
       </section>
 
       <section className="metric-strip">
-        <MetricCard icon="▱" label="真实商品资料" value="7" hint="德国、奥地利、英国商品" />
+        <MetricCard icon="▱" label="真实商品资料" value="8" hint="德国、奥地利、英国、意大利商品" />
         <MetricCard icon="♙" label="接近成团" value="3" hint="超过 70% 的单品" />
         <MetricCard icon="▰" label="我的意向" value="12" hint="待二次确认 3 个" />
         <MetricCard icon="▤" label="费用拆解" value="5 项" hint="采购价、运输、税费、配送、服务费" />
@@ -327,8 +412,8 @@ function Dashboard({
                 <h3>{product.cnName}</h3>
                 <p>{product.summary}</p>
                 <div className="spec-grid">
-                  <Spec label="规格" value={product.spec} />
-                  <Spec label="单位" value={`箱 (${product.caseSpec.replace(" / 箱", "")})`} />
+                  <Spec label="规格" value={product.spec.split("*")[0]} />
+                  <Spec label="单位" value={product.caseSpec} />
                   <Spec label="保质期" value={product.shelfLife} />
                 </div>
                 <div className="price-split">
@@ -361,7 +446,7 @@ function Dashboard({
                       setView("intention");
                     }}
                   >
-                    🛒 立即采购
+                    加入采购
                   </button>
                 </div>
               </article>
@@ -410,7 +495,7 @@ function Dashboard({
           <section className="status-card">
             <h2>采购状态</h2>
             <p>公开资料已录入：箱规、费用、装柜量和毛利带需供应商内部复核。</p>
-            <button className="plain-link" type="button" onClick={() => setView("catalog")}>
+            <button className="plain-link" type="button" onClick={() => setView("procurement")}>
               去查看 ›
             </button>
           </section>
@@ -423,9 +508,9 @@ function Dashboard({
           <p>按消费场景组织商品，提升采购效率</p>
         </div>
         <div className="bundle-grid">
-          <Bundle title="欧洲早餐组合" names="Twinings + Walker's + McVitie's" count="共 6 个商品" />
-          <Bundle title="儿童糖果引流组合" names="HARIBO + 低糖果蔬威化" count="共 4 个商品" />
-          <Bundle title="进口零食基础组合" names="Ritter Sport + Manner + McVitie's" count="共 5 个商品" />
+          <Bundle title="欧洲早餐组合" names="Twinings + JACOB'S + Lavazza" count="共 6 个商品" />
+          <Bundle title="儿童糖果引流组合" names="HARIBO + Manner" count="共 4 个商品" />
+          <Bundle title="进口零食基础组合" names="Ritter Sport + Manner + JACOB'S" count="共 5 个商品" />
         </div>
       </section>
     </>
@@ -446,90 +531,263 @@ function MetricCard({ icon, label, value, hint }: { icon: string; label: string;
 }
 
 function Catalog({
-  selectedCountry,
-  setSelectedCountry,
   setView,
   setSelectedId,
 }: {
-  selectedCountry: string;
-  setSelectedCountry: (country: string) => void;
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
-  const list = useMemo(
-    () => products.filter((product) => selectedCountry === "全部" || product.country === selectedCountry),
-    [selectedCountry],
+  return (
+    <>
+      <section className="catalog-toolbar">
+        <h1>商品目录</h1>
+        <div className="catalog-search">
+          <input placeholder="请输入商品名称、品牌或关键词" />
+          <button className="primary-button" type="button">
+            搜索
+          </button>
+        </div>
+      </section>
+
+      <section className="category-strip">
+        {catalogCategories.map((category, index) => (
+          <button key={category} className={index === 0 ? "active" : ""} type="button">
+            {category}
+          </button>
+        ))}
+        <button type="button">清空筛选</button>
+      </section>
+
+      <section className="catalog-layout">
+        <aside className="filter-panel">
+          <div className="filter-head">
+            <h2>筛选条件</h2>
+            <button type="button">重置</button>
+          </div>
+          <FilterGroup title="原产国/地区" items={["全部", "德国", "英国", "法国", "意大利", "西班牙"]} />
+          <FilterGroup title="品牌" items={["全部", "Haribo", "Jacob's", "Manner", "Twinings", "Ritter Sport"]} hasSearch />
+          <div className="filter-block">
+            <h3>价格区间 (¥/箱)</h3>
+            <div className="price-filter">
+              <input placeholder="最低价" />
+              <span>-</span>
+              <input placeholder="最高价" />
+              <button type="button">确定</button>
+            </div>
+          </div>
+          <FilterGroup title="MOQ (箱)" items={["全部", "≤ 10 箱", "11-20 箱", "21-50 箱", "> 50 箱"]} />
+        </aside>
+
+        <section className="catalog-main">
+          <div className="catalog-main-head">
+            <span>共 1,248 个商品</span>
+            <div>
+              <span>排序:</span>
+              <button className="field-button compact" type="button">
+                默认排序⌄
+              </button>
+              <button className="primary-button" type="button">
+                ▦ 网格
+              </button>
+              <button className="outline-button" type="button">
+                列表
+              </button>
+            </div>
+          </div>
+
+          <div className="catalog-grid">
+            {products.map((product) => (
+              <article className="catalog-card" key={product.id}>
+                <ProductImage product={product} />
+                <TagRow tags={[product.country, product.category]} />
+                <h2>{product.cnName}</h2>
+                <p>{product.spec}</p>
+                <strong>{product.price}</strong>
+                <small>{product.moq}</small>
+                <div>
+                  <button
+                    className="favorite-button"
+                    type="button"
+                    aria-label={`收藏 ${product.cnName}`}
+                    onClick={() => {
+                      setSelectedId(product.id);
+                    }}
+                  >
+                    ♡
+                  </button>
+                  <button
+                    className="primary-button full"
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(product.id);
+                      setView("intention");
+                    }}
+                  >
+                    加入采购
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <footer className="pagination">
+            <span>‹</span>
+            <button className="active" type="button">1</button>
+            <button type="button">2</button>
+            <button type="button">3</button>
+            <button type="button">4</button>
+            <button type="button">5</button>
+            <span>…</span>
+            <button type="button">63</button>
+            <span>›</span>
+            <span className="jump-page">跳至 1 页</span>
+          </footer>
+        </section>
+      </section>
+    </>
   );
+}
+
+function FilterGroup({ title, items, hasSearch = false }: { title: string; items: string[]; hasSearch?: boolean }) {
+  return (
+    <div className="filter-block">
+      <h3>{title}</h3>
+      {hasSearch ? <input className="filter-search" placeholder="搜索品牌" /> : null}
+      <div className="check-list">
+        {items.map((item, index) => (
+          <label key={item}>
+            <input type="checkbox" defaultChecked={index === 0} />
+            {item}
+          </label>
+        ))}
+      </div>
+      {items.length > 5 ? <button type="button">展开更多⌄</button> : null}
+    </div>
+  );
+}
+
+function ProcurementProgress({
+  setView,
+  setSelectedId,
+}: {
+  setView: (view: View) => void;
+  setSelectedId: (id: string) => void;
+}) {
+  const rows = [
+    ["曼纳原味榛子威化 75g", "SPAR20240524001", "德国奥地利供应商", "清关中", 83, "2024-06-05", "进行中"],
+    ["哈瑞宝金熊软糖 175g", "SPAR20240523002", "HARIBO GmbH & Co. KG", "运输中", 62, "2024-06-08", "进行中"],
+    ["沃克斯黄油酥饼条 250g", "SPAR20240520003", "Burton's Biscuits Co.", "已到港", 90, "2024-06-03", "异常"],
+    ["瑞特斯波德巧克力 100g", "SPAR20240518004", "Ritter Sport GmbH", "已完成", 100, "2024-05-25", "已完成"],
+    ["雅各布斯速溶咖啡 200g", "SPAR20240516005", "JACOBS Douwe Egberts", "采购中", 35, "2024-06-12", "进行中"],
+    ["费列罗榛果威化巧克力 48粒", "SPAR20240514006", "Ferrero S.p.A.", "需求确认", 15, "2024-06-15", "进行中"],
+  ];
 
   return (
     <>
-      <section className="page-heading with-filters">
-        <div>
-          <p>筛选 〉</p>
-          <h1>按国家查看</h1>
-        </div>
-        <div className="country-tabs">
-          {countryTabs.map((country) => (
-            <button
-              key={country}
-              className={selectedCountry === country ? "active" : ""}
-              type="button"
-              onClick={() => setSelectedCountry(country)}
-            >
-              {country}
-            </button>
-          ))}
-        </div>
+      <PageTitle title="采购进度" subtitle="全局掌握采购项目进展，高效协同，准时交付" />
+      <section className="metric-strip procurement-metrics">
+        <MetricCard icon="◰" label="进行中项目" value="8" hint="较上周 ↑ 2" />
+        <MetricCard icon="☑" label="已完成项目" value="26" hint="较上周 ↑ 5" />
+        <MetricCard icon="◷" label="按时交付率" value="92%" hint="较上周 ↑ 3%" />
+        <MetricCard icon="◴" label="整体完成率" value="78%" hint="较上周 ↑ 6%" />
+        <MetricCard icon="▣" label="平均交付周期" value="18 天" hint="较上周 ↓ 2天" />
+        <MetricCard icon="!" label="异常项目" value="2" hint="较上周 ↓ 1" />
       </section>
-
-      <section className="catalog-list">
-        {list.map((product) => (
-          <article className="catalog-row" key={product.id}>
-            <ProductImage product={product} size="thumb" />
-            <span className="flag">{product.flag}</span>
-            <div className="catalog-copy">
-              <h2>{product.cnName}</h2>
-              <p>
-                {product.brand} · {product.enName.replace(product.brand, "").trim()} · {product.spec}
-              </p>
-              <p>{product.summary}</p>
-              <TagRow tags={product.tags} />
-            </div>
-            <div className="catalog-price">
-              <strong>{product.priceBand}</strong>
-              <span>售价带</span>
-            </div>
-            <div className="catalog-price compact">
-              <strong>{product.gross}</strong>
-              <span>毛利带</span>
-            </div>
-            <button
-              className="row-button"
-              type="button"
-              onClick={() => {
-                setSelectedId(product.id);
-                setView("detail");
-              }}
-            >
-              详情
-            </button>
-          </article>
-        ))}
+      <section className="progress-tabs">
+        <button className="active" type="button">项目总览</button>
+        <button type="button" onClick={() => setView("progress")}>柜号视图</button>
+        <button type="button">时间线视图</button>
       </section>
+      <section className="progress-filter-row">
+        <input placeholder="搜索项目名称 / 柜号 / 供应商" />
+        <button type="button">全部状态⌄</button>
+        <button type="button">全部阶段⌄</button>
+        <button type="button">起始日期 - 结束日期</button>
+        <button type="button">重置</button>
+        <button className="primary-button" type="button">导出报表</button>
+      </section>
+      <section className="procurement-layout">
+        <div className="panel procurement-table">
+          <h2>采购项目列表</h2>
+          <div className="data-table procurement">
+            <div>项目 / 柜号</div>
+            <div>供应商</div>
+            <div>当前阶段</div>
+            <div>整体进度</div>
+            <div>计划交付</div>
+            <div>状态</div>
+            <div>操作</div>
+            {rows.map((row, index) => (
+              <ProcurementRow
+                key={row[1].toString()}
+                row={row}
+                product={products[index % products.length]}
+                onDetail={() => {
+                  setSelectedId(products[index % products.length].id);
+                  setView("detail");
+                }}
+              />
+            ))}
+          </div>
+          <footer className="table-footer">共 8 条 <span>‹</span><b>1</b><span>›</span><button type="button">10 条/页⌄</button></footer>
+        </div>
+        <aside className="procurement-side">
+          <section className="panel stage-card">
+            <h2>阶段说明 <span>共 6 个阶段</span></h2>
+            <div className="stage-steps">
+              {["需求确认", "采购中", "运输中", "清关中", "已到港", "已完成"].map((step, index) => (
+                <div key={step} className={index === 3 ? "active" : ""}>
+                  <b>{index + 1}</b>
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="panel timeline-card">
+            <h2>项目时间线</h2>
+            {[
+              ["2024-05-24 09:30", "需求已确认", "采购需求已提交并确认"],
+              ["2024-05-24 14:20", "采购已下单", "采购订单已发送至供应商"],
+              ["2024-05-27 16:45", "货物已发运", "供应商已发货，预计 2024-06-02 到港"],
+              ["2024-06-02 10:15", "货物已到港", "货物已到达目的港，等待清关"],
+              ["2024-06-03 11:30", "清关中", "海关清关进行中"],
+            ].map((item) => (
+              <div className="timeline-item" key={item[0]}>
+                <time>{item[0]}</time>
+                <strong>{item[1]}</strong>
+                <span>{item[2]}</span>
+              </div>
+            ))}
+            <button className="outline-button full" type="button">查看全部时间线</button>
+          </section>
+        </aside>
+      </section>
+    </>
+  );
+}
 
-      <footer className="pagination">
-        <span>共 128 条商品</span>
-        <button type="button">‹</button>
-        <button className="active" type="button">1</button>
-        <button type="button">2</button>
-        <button type="button">3</button>
-        <button type="button">4</button>
-        <button type="button">5</button>
-        <span>…</span>
-        <button type="button">13</button>
-        <button type="button">›</button>
-        <button className="page-size" type="button">10 条/页⌄</button>
-      </footer>
+function ProcurementRow({
+  row,
+  product,
+  onDetail,
+}: {
+  row: (string | number)[];
+  product: Product;
+  onDetail: () => void;
+}) {
+  const percent = Number(row[4]);
+  return (
+    <>
+      <div className="project-cell">
+        <ProductImage product={product} size="mini" />
+        <span><strong>{row[0]}</strong><small>柜号：{row[1]}</small></span>
+      </div>
+      <div>{product.flag} {row[2]}</div>
+      <div><span className="dot" />{row[3]}<small>阶段 {Math.ceil(percent / 18)} / 6</small></div>
+      <div><strong className="green-text">{percent}%</strong><ProgressBar value={percent} /></div>
+      <div>{row[5]}<small>{percent > 90 ? "提前 2 天" : "剩余 5 天"}</small></div>
+      <div><span className={`status-pill ${row[6] === "异常" ? "danger" : row[6] === "已完成" ? "done" : ""}`}>{row[6]}</span></div>
+      <div><button className="outline-button" type="button" onClick={onDetail}>查看详情</button></div>
     </>
   );
 }
@@ -545,11 +803,7 @@ function ProgressBoard({
 
   return (
     <>
-      <section className="page-heading">
-        <p>成团进度</p>
-        <h1>单品 20 尺柜进度看板</h1>
-      </section>
-
+      <PageTitle title="单品 20 尺柜进度看板" subtitle="企业端不展示其他参与企业，仅展示总进度" />
       <section className="panel progress-panel">
         <div className="progress-title">
           <div>
@@ -558,7 +812,6 @@ function ProgressBoard({
           </div>
           <span className="privacy-badge">♢ 隐私保护</span>
         </div>
-
         <div className="progress-list">
           {ordered.map((product) => {
             const pct = progressOf(product);
@@ -600,135 +853,242 @@ function ProgressBoard({
   );
 }
 
-function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product; setView: (view: View) => void }) {
-  const pct = progressOf(selectedProduct);
-
+function ReportsPage() {
   return (
     <>
-      <section className="page-heading">
-        <p>采购意向 / 提交企业采购意向</p>
-        <h1>提交企业采购意向</h1>
-        <small>仅形成意向，不锁定价格、库存和交期</small>
+      <PageTitle title="数据报表" subtitle="多维度数据分析，助力业务决策" />
+      <section className="report-filters">
+        <button type="button">时间范围<br /><strong>2024-05-01 ~ 2024-05-31</strong></button>
+        <button type="button">对比维度<br /><strong>环比⌄</strong></button>
+        <button type="button">商品类别<br /><strong>全部类别⌄</strong></button>
+        <button type="button">品牌<br /><strong>全部品牌⌄</strong></button>
+        <button type="button">国家/地区<br /><strong>全部国家⌄</strong></button>
+        <button className="outline-button" type="button">重置</button>
+        <button className="primary-button" type="button">导出报表</button>
       </section>
-
-      <div className="intention-grid">
-        <section className="panel form-panel">
-          <h2 className="section-title">商品信息</h2>
-          <div className="form-grid">
-            <label>
-              <span>商品</span>
-              <button className="field-button product-field" type="button">
-                <ProductImage product={selectedProduct} size="mini" />
-                <strong>{selectedProduct.cnName}</strong>
-                <em>⌄</em>
-              </button>
-            </label>
-            <label>
-              <span>意向数量</span>
-              <div className="number-field">
-                <input defaultValue="120" aria-label="意向数量" />
-                <b>箱</b>
-              </div>
-            </label>
-            <label>
-              <span>收货区域</span>
-              <button className="field-button" type="button">
-                山东区域仓 <em>⌄</em>
-              </button>
-            </label>
-            <label>
-              <span>期望到货窗口</span>
-              <button className="field-button" type="button">
-                2026 年 Q4 <em>⌄</em>
-              </button>
-            </label>
+      <section className="metric-strip report-metrics">
+        <ReportMetric label="采购金额" value="¥ 2,450,890.60" change="较上月 ↑ 18.6%" />
+        <ReportMetric label="订单数" value="312" change="较上月 ↑ 12.4%" />
+        <ReportMetric label="成团数" value="68" change="较上月 ↑ 25.9%" />
+        <ReportMetric label="商品数" value="1,245" change="较上月 ↑ 8.3%" />
+        <ReportMetric label="客单价" value="¥ 7,852.21" change="较上月 ↑ 5.7%" />
+      </section>
+      <section className="report-grid">
+        <article className="panel line-panel">
+          <h2>采购金额趋势</h2>
+          <div className="line-legend"><span />采购金额（元）<b />订单数（单）</div>
+          <div className="line-chart">
+            {Array.from({ length: 28 }, (_, index) => (
+              <i key={index} style={{ height: `${28 + ((index * 17) % 52)}%` }} />
+            ))}
           </div>
-          <label className="note-field">
-            <span>备注（选填）</span>
-            <textarea placeholder="填写陈列计划、门店覆盖、采购审批要求或其他说明" maxLength={200} />
-            <small>0 / 200</small>
-          </label>
-          <div className="notice">
-            <b>i</b>
-            <span>提交后平台只记录企业采购意向，达到 20 尺柜后，平台发起二次确认；正式采购前再确认价格、合同、预付款和交期。</span>
+        </article>
+        <article className="panel donut-panel">
+          <h2>品类采购金额占比</h2>
+          <div className="report-donut"><strong>¥ 2,450,890.60</strong><span>总金额</span></div>
+          <ul className="legend-list">
+            {["糖果巧克力 28.6% ¥ 701,754.95", "饼干糕点 22.4% ¥ 549,688.30", "饮料冲调 18.7% ¥ 458,912.40", "粮油调味 12.9% ¥ 316,313.40", "休闲食品 8.3% ¥ 203,134.60", "其他 9.1% ¥ 221,086.95"].map((text, index) => (
+              <li key={text}><span className={`legend-dot color-${index}`} />{text}</li>
+            ))}
+          </ul>
+        </article>
+        <RankPanel title="国家/地区采购金额 TOP5" items={["德国 ¥ 856,200.50", "英国 ¥ 647,800.30", "法国 ¥ 398,600.20", "日本 ¥ 296,400.10", "美国 ¥ 251,200.40"]} />
+        <RankPanel title="品牌采购金额 TOP5" items={["HARIBO ¥ 245,600.30", "JACOBS ¥ 198,700.20", "Manner ¥ 156,400.10", "Ritter Sport ¥ 132,600.80", "Walker's ¥ 118,300.50"]} />
+        <article className="panel report-table">
+          <h2>采购概览</h2>
+          <div className="data-table four">
+            <div>指标</div><div>本期（2024-05）</div><div>上期（2024-04）</div><div>环比变化</div>
+            {[
+              ["采购金额（元）", "2,450,890.60", "2,067,441.80", "↑ 18.6%"],
+              ["订单数（单）", "312", "277", "↑ 12.4%"],
+              ["成团数（单）", "68", "54", "↑ 25.9%"],
+              ["商品数（个）", "1,245", "1,150", "↑ 8.3%"],
+              ["客单价（元）", "7,852.21", "7,451.23", "↑ 5.7%"],
+            ].flat().map((cell, index) => <div key={`${cell}-${index}`}>{cell}</div>)}
           </div>
-          <button className="primary-button submit-button" type="button">
-            ✈ 提交意向
-          </button>
-        </section>
-
-        <aside className="intention-side">
-          <section className="panel current-product">
-            <h2>当前商品</h2>
-            <div className="current-product-body">
-              <ProductImage product={selectedProduct} size="thumb" />
-              <div>
-                <h3>{selectedProduct.cnName}</h3>
-                <p>
-                  {selectedProduct.spec} · {selectedProduct.caseSpec}
-                </p>
-                <strong>{selectedProduct.price}</strong>
-                <span>预计到仓成本</span>
-              </div>
-            </div>
-            <button className="soft-button" type="button" onClick={() => setView("detail")}>
-              查看商品详情 →
-            </button>
-          </section>
-
-          <section className="panel selection-card">
-            <h2>当前选择</h2>
-            <SelectionLine icon="🛒" label="意向数量" value="120 箱" />
-            <SelectionLine icon="⌖" label="收货区域" value="山东区域仓" />
-            <SelectionLine icon="□" label="期望到货窗口" value="2026 年 Q4" />
-            <div className="selection-progress">
-              <div>
-                <span>成团进度</span>
-                <strong>{pct}%</strong>
-              </div>
-              <ProgressBar value={pct} />
-              <small>距离成团目标 {100 - pct}%</small>
-            </div>
-          </section>
-
-          <section className="rule-card">
-            <h2>意向规则</h2>
-            <p>企业可修改或撤回意向；成团后二次确认前，平台不应对外承诺最终成交价格。</p>
-            <button className="plain-link" type="button">
-              查看平台规则 →
-            </button>
-          </section>
-        </aside>
-      </div>
-
-      <section className="trust-strip">
-        <TrustCard icon="◇" title="意向保护" text="仅记录意向，不锁定价格、库存和交期，让采购更灵活。" />
-        <TrustCard icon="♙" title="成团通知" text="达到起订量后，平台将自动通知您进行二次确认。" />
-        <TrustCard icon="▤" title="安全合规" text="所有交易遵循平台规则，保障您的采购安全与合规。" />
+        </article>
       </section>
     </>
   );
 }
 
-function DetailPage({
-  product,
-  setView,
-}: {
-  product: Product;
-  setView: (view: View) => void;
-}) {
+function ReportMetric({ label, value, change }: { label: string; value: string; change: string }) {
+  return (
+    <article className="report-metric">
+      <span className="metric-icon">▣</span>
+      <div><small>{label}</small><strong>{value}</strong><p>{change}</p></div>
+      <div className="sparkline">{Array.from({ length: 16 }, (_, i) => <i key={i} style={{ height: `${20 + ((i * 13) % 40)}%` }} />)}</div>
+    </article>
+  );
+}
+
+function RankPanel({ title, items }: { title: string; items: string[] }) {
+  return (
+    <article className="panel rank-panel">
+      <h2>{title}</h2>
+      {items.map((item, index) => (
+        <div className="rank-line" key={item}>
+          <span>{item}</span>
+          <b style={{ width: `${88 - index * 12}%` }} />
+        </div>
+      ))}
+    </article>
+  );
+}
+
+function ClientsPage() {
+  const clients = [
+    ["广东嘉荣超市有限公司", "华南区域头部超市", "合作中", "★★★★★", "采购负责人", "客户经理已登记", "¥ 5,680,000", "2024-05-20"],
+    ["家家悦集团股份有限公司", "山东区域连锁超市", "合作中", "★★★★★", "进口食品负责人", "客户经理已登记", "¥ 4,320,000", "2024-05-18"],
+    ["湖南佳惠百货有限责任公司", "湖南区域商贸零售", "合作中", "★★★★☆", "休食采购负责人", "客户经理已登记", "¥ 3,980,000", "2024-05-17"],
+    ["福建冠超市商业有限公司", "福建区域连锁超市", "合作中", "★★★★☆", "采购中心负责人", "客户经理已登记", "¥ 3,650,000", "2024-05-16"],
+    ["安徽乐城投资股份有限公司", "安徽区域精品超市", "潜在客户", "★★★☆☆", "商品部负责人", "待补充", "¥ 1,280,000", "2024-05-10"],
+    ["四川舞东风超市连锁股份有限公司", "西南区域社区零售", "跟进中", "★★★☆☆", "采购经理", "待补充", "¥ 980,000", "2024-04-28"],
+    ["重庆重客隆超市连锁有限责任公司", "重庆区域连锁超市", "待评估", "★★☆☆☆", "商品经理", "待补充", "¥ 670,000", "2024-04-15"],
+  ];
+  return (
+    <>
+      <PageTitle title="企业客户" subtitle="管理和维护企业客户信息，建立长期合作关系" />
+      <section className="metric-strip client-metrics">
+        <MetricCard icon="♙" label="客户总数" value="128" hint="较上月 +12 ↑" />
+        <MetricCard icon="▧" label="活跃客户" value="89" hint="活跃率 69.5%" />
+        <MetricCard icon="♢" label="合作金额（本年）" value="¥ 28,560,000" hint="较去年 +18.6% ↑" />
+        <MetricCard icon="▥" label="订单总数（本年）" value="2,346" hint="较去年 +15.3% ↑" />
+      </section>
+      <section className="client-actions">
+        <input placeholder="搜索客户名称、联系人、电话" />
+        <button type="button">客户状态⌄</button>
+        <button type="button">合作等级⌄</button>
+        <button type="button">所在地区⌄</button>
+        <button type="button">更多筛选⌄</button>
+        <button className="plain-link" type="button">重置</button>
+        <button className="outline-button" type="button">导出数据</button>
+        <button className="primary-button" type="button">+ 新增客户</button>
+      </section>
+      <section className="clients-layout">
+        <article className="panel client-table">
+          <div className="data-table clients">
+            <div>客户名称</div><div>客户状态</div><div>合作等级</div><div>联系人</div><div>联系电话</div><div>合作金额（本年）</div><div>最后订单时间</div><div>操作</div>
+            {clients.flatMap((row) => (
+              row.concat("查看详情 编辑 ⋯").map((cell, index) => (
+                <div key={`${row[0]}-${index}`} className={index === 2 ? "stars" : ""}>{cell}</div>
+              ))
+            ))}
+          </div>
+          <footer className="table-footer">共 128 条 <button type="button">10 条/页⌄</button><span>‹</span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>…</span><span>13</span><span>›</span></footer>
+        </article>
+        <aside className="client-side">
+          <section className="panel side-donut"><h2>客户状态分布</h2><div className="mini-donut">128<span>客户总数</span></div><p>合作中 89（69.5%）</p><p>潜在客户 21（16.4%）</p><p>已暂停 12（9.4%）</p></section>
+          <section className="panel grade-card"><h2>合作等级分布</h2>{["战略合作伙伴 23", "优质合作伙伴 45", "一般合作伙伴 38", "潜力合作伙伴 16", "待发展伙伴 6"].map((item) => <p key={item}>★★★★★ <span>{item}</span></p>)}</section>
+          <section className="panel recent-card"><h2>最近新增客户</h2>{["深圳市美宜佳控股...", "广州钱大妈农产品...", "佛山市顺客隆商业..."].map((item) => <p key={item}>{item}<span>潜在客户</span></p>)}</section>
+        </aside>
+      </section>
+    </>
+  );
+}
+
+function MessagesPage() {
+  const categories = [["全部消息", "12"], ["系统公告", "3"], ["订单通知", "4"], ["成团进度", "2"], ["费用通知", "1"], ["服务通知", "1"], ["平台活动", "1"], ["其他消息", "0"]];
+  const messages = [
+    ["系统升级维护通知", "SPAR 联采平台将于 2024年5月25日 22:00 - 5月26日 02:00 进行系统升级维护，期间平台部分功能将受影响...", "系统公告", "10:30", "未读"],
+    ["订单支付成功通知", "您的订单 PO-20240524001 已支付成功，金额 ¥78,450.00 元。感谢您的采购！", "订单通知", "昨天 16:45", "未读"],
+    ["成团进度更新", "您参与的团组「进口饼干零食专场」成团率已更新至 83%，距离成团目标还差 17%。", "成团进度", "昨天 11:20", "未读"],
+    ["费用结算通知", "您的 2024年5月 结算单已生成，金额 ¥12,680.00 元，请及时查看并安排付款。", "费用通知", "5月23日 09:15", "已读"],
+    ["服务商响应通知", "您的售后服务请求（工单号：SR-20240522001）已有新回复，请及时查看。", "服务通知", "5月22日 14:30", "已读"],
+    ["618 进口好物节活动预告", "SPAR 联采 618 进口好物节即将开启，多重优惠等你来享！", "平台活动", "5月21日 10:00", "已读"],
+  ];
+  return (
+    <>
+      <section className="dashboard-title"><h1>消息中心</h1><p>下午好，王经理</p></section>
+      <section className="message-layout">
+        <aside className="panel message-sidebar">
+          <h2>消息分类</h2>
+          {categories.map((item, index) => <button className={index === 0 ? "active" : ""} key={item[0]} type="button"><span>{item[0]}</span><b>{item[1]}</b></button>)}
+          <h2>消息状态</h2>
+          {["全部状态 12", "未读消息 3", "已读消息 9"].map((item) => <button key={item} type="button">{item}</button>)}
+        </aside>
+        <section className="panel message-main">
+          <div className="message-tools"><label><input type="checkbox" /> 全选</label><button type="button">标为已读</button><button type="button">删除</button><span /><button type="button">全部时间⌄</button><button type="button">最新在前⌄</button><button type="button">刷新</button></div>
+          {messages.map((message, index) => (
+            <article className={`message-item ${index === 0 ? "featured" : ""}`} key={message[0]}>
+              <input type="checkbox" />
+              <span className="message-icon">●</span>
+              <div><h2>{message[0]}</h2><p>{message[1]}</p><b>{message[2]}</b></div>
+              <time>{message[3]}</time>
+              <small>{message[4]}</small>
+            </article>
+          ))}
+          <footer className="table-footer">共 12 条消息 <span>‹</span><b>1</b><span>2</span><span>›</span><button type="button">20 条/页⌄</button></footer>
+        </section>
+      </section>
+    </>
+  );
+}
+
+function HelpPage() {
+  const cats = [["账户与权限", "账户注册、权限管理、企业信息维护", "12 篇文章"], ["采购流程", "商品搜索、下单、成团、订单跟踪", "18 篇文章"], ["支付与结算", "支付方式、发票申请、对账结算", "15 篇文章"], ["物流与配送", "配送方式、运费说明、物流跟踪", "10 篇文章"], ["售后与服务", "退换货政策、售后服务、投诉建议", "8 篇文章"], ["政策与规则", "平台规则、隐私政策、合规说明", "6 篇文章"]];
+  const docs = ["如何快速发起采购需求", "成团规则与进度说明", "费用构成与结算说明", "发票申请操作指南", "物流配送说明", "售后服务与退换货政策"];
+  const faq = ["如何注册 SPAR 联采平台账号？", "如何发起采购意向？", "成团需要满足什么条件？", "订单确认后可以修改吗？", "如何申请发票？", "商品质量问题如何处理？", "配送范围和时效是怎样的？", "如何联系客户支持？"];
+  return (
+    <>
+      <PageTitle title="帮助中心" subtitle="为您提供全面的帮助与支持" />
+      <section className="help-hero">
+        <div>
+          <h2>您好，王经理<br />有什么可以帮助您?</h2>
+          <div className="help-search"><input placeholder="搜索帮助文档、问题或功能..." /><button className="primary-button" type="button">搜索</button></div>
+          <p>热门搜索： 成团规则 费用说明 订单管理 发票申请 退换货政策</p>
+        </div>
+        <div className="help-visual">SPAR</div>
+      </section>
+      <h2 className="section-label">常见问题分类</h2>
+      <section className="help-categories">
+        {cats.map((cat, index) => <article className="panel" key={cat[0]}><span className={`help-dot color-${index}`}>▣</span><h3>{cat[0]}</h3><p>{cat[1]}</p><small>{cat[2]}</small></article>)}
+      </section>
+      <section className="help-grid">
+        <article className="panel doc-list"><h2>热门文档</h2>{docs.map((doc, index) => <div key={doc}><span>▤</span><strong>{doc}</strong><small>{index + 1}.{index % 2 ? "8" : "3"}k 浏览</small></div>)}</article>
+        <article className="panel faq-list"><h2>常见问题 FAQ</h2>{faq.map((item) => <button key={item} type="button">{item}<span>⌄</span></button>)}</article>
+        <aside className="panel support-card"><h2>需要更多帮助?</h2><p>我们的客服团队随时为您提供专业支持</p><div>在线客服 <b>推荐</b><small>7×24小时在线服务</small></div><div>电话咨询<small>400-888-SPAR (7727)</small></div><div>邮件支持<small>support@spar.com.cn</small></div><button className="primary-button full" type="button">提交工单</button></aside>
+      </section>
+    </>
+  );
+}
+
+function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product; setView: (view: View) => void }) {
+  const pct = progressOf(selectedProduct);
+
+  return (
+    <>
+      <PageTitle title="提交企业采购意向" subtitle="仅形成意向，不锁定价格、库存和交期" />
+      <div className="intention-grid">
+        <section className="panel form-panel">
+          <h2 className="section-title">商品信息</h2>
+          <div className="form-grid">
+            <label><span>商品</span><button className="field-button product-field" type="button"><ProductImage product={selectedProduct} size="mini" /><strong>{selectedProduct.cnName}</strong><em>⌄</em></button></label>
+            <label><span>意向数量</span><div className="number-field"><input defaultValue="120" aria-label="意向数量" /><b>箱</b></div></label>
+            <label><span>收货区域</span><button className="field-button" type="button">山东区域仓 <em>⌄</em></button></label>
+            <label><span>期望到货窗口</span><button className="field-button" type="button">2026 年 Q4 <em>⌄</em></button></label>
+          </div>
+          <label className="note-field"><span>备注（选填）</span><textarea placeholder="填写陈列计划、门店覆盖、采购审批要求或其他说明" maxLength={200} /><small>0 / 200</small></label>
+          <div className="notice"><b>i</b><span>提交后平台只记录企业采购意向，达到 20 尺柜后，平台发起二次确认；正式采购前再确认价格、合同、预付款和交期。</span></div>
+          <button className="primary-button submit-button" type="button">提交意向</button>
+        </section>
+        <aside className="intention-side">
+          <section className="panel current-product"><h2>当前商品</h2><div className="current-product-body"><ProductImage product={selectedProduct} size="thumb" /><div><h3>{selectedProduct.cnName}</h3><p>{selectedProduct.spec} · {selectedProduct.caseSpec}</p><strong>{selectedProduct.price}</strong><span>预计到仓成本</span></div></div><button className="soft-button" type="button" onClick={() => setView("detail")}>查看商品详情 →</button></section>
+          <section className="panel selection-card"><h2>当前选择</h2><SelectionLine icon="▰" label="意向数量" value="120 箱" /><SelectionLine icon="⌖" label="收货区域" value="山东区域仓" /><SelectionLine icon="□" label="期望到货窗口" value="2026 年 Q4" /><div className="selection-progress"><div><span>成团进度</span><strong>{pct}%</strong></div><ProgressBar value={pct} /><small>距离成团目标 {100 - pct}%</small></div></section>
+          <section className="rule-card"><h2>意向规则</h2><p>企业可修改或撤回意向；成团后二次确认前，平台不应对外承诺最终成交价格。</p><button className="plain-link" type="button">查看平台规则 →</button></section>
+        </aside>
+      </div>
+      <section className="trust-strip"><TrustCard icon="◇" title="意向保护" text="仅记录意向，不锁定价格、库存和交期，让采购更灵活。" /><TrustCard icon="♙" title="成团通知" text="达到起订量后，平台将自动通知您进行二次确认。" /><TrustCard icon="▤" title="安全合规" text="所有交易遵循平台规则，保障您的采购安全与合规。" /></section>
+    </>
+  );
+}
+
+function DetailPage({ product, setView }: { product: Product; setView: (view: View) => void }) {
   const pct = progressOf(product);
 
   return (
     <>
-      <section className="page-heading detail-heading">
-        <p>商品目录 / 商品详情</p>
-        <h1>{product.cnName}</h1>
-        <small>
-          {product.brand} · {product.country} · {product.category}
-        </small>
-      </section>
-
+      <PageTitle title={product.cnName} subtitle={`${product.brand} · ${product.country} · ${product.category}`} />
       <section className="panel detail-panel">
         <ProductImage product={product} size="wide" />
         <div className="detail-copy">
@@ -744,129 +1104,63 @@ function DetailPage({
             <Spec label="20 尺柜目标" value={`${product.targetBoxes.toLocaleString()} 箱`} />
             <Spec label="当前总意向" value={`${product.currentBoxes.toLocaleString()} 箱`} />
           </div>
-          <div className="detail-progress">
-            <div>
-              <strong>{pct}%</strong>
-              <span>当前成团进度</span>
-            </div>
-            <ProgressBar value={pct} />
-          </div>
-          <div className="card-actions detail-actions">
-            <button className="outline-button" type="button" onClick={() => setView("catalog")}>
-              返回目录
-            </button>
-            <button className="primary-button" type="button" onClick={() => setView("intention")}>
-              提交采购意向
-            </button>
-          </div>
+          <div className="detail-progress"><div><strong>{pct}%</strong><span>当前成团进度</span></div><ProgressBar value={pct} /></div>
+          <div className="card-actions detail-actions"><button className="outline-button" type="button" onClick={() => setView("catalog")}>返回目录</button><button className="primary-button" type="button" onClick={() => setView("intention")}>提交采购意向</button></div>
         </div>
       </section>
     </>
   );
 }
 
-function SimpleAdminPage({ title, text }: { title: string; text: string }) {
-  return (
-    <section className="panel simple-page">
-      <h1>{title}</h1>
-      <p>{text}</p>
-      <div className="empty-table">
-        <div>企业账户</div>
-        <div>角色权限</div>
-        <div>数据状态</div>
-        <div>广东嘉荣集团</div>
-        <div>食品采购部 · 王经理</div>
-        <div>可查看商品、提交意向、查看总进度</div>
-      </div>
-    </section>
-  );
+function PageTitle({ title, subtitle }: { title: string; subtitle: string }) {
+  return <section className="page-heading inline"><h1>{title}</h1><p>{subtitle}</p></section>;
 }
 
 function TagRow({ tags }: { tags: string[] }) {
-  return (
-    <div className="tag-row">
-      {tags.map((tag) => (
-        <span key={tag}>{tag}</span>
-      ))}
-    </div>
-  );
+  return <div className="tag-row">{tags.map((tag) => <span key={tag}>{tag}</span>)}</div>;
 }
 
 function Spec({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="spec-item">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
+  return <div className="spec-item"><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function ProgressBar({ value }: { value: number }) {
-  return (
-    <div className="progress-bar" aria-label={`当前进度 ${value}%`}>
-      <span style={{ width: `${value}%` }} />
-    </div>
-  );
+  return <div className="progress-bar" aria-label={`当前进度 ${value}%`}><span style={{ width: `${value}%` }} /></div>;
 }
 
 function Bundle({ title, names, count }: { title: string; names: string; count: string }) {
-  return (
-    <article className="bundle-card">
-      <strong>{title}</strong>
-      <h3>{names}</h3>
-      <p>适合区域门店建立进口食品基础货架。</p>
-      <div>
-        <span>{count}</span>
-        <button type="button">查看组合</button>
-      </div>
-    </article>
-  );
+  return <article className="bundle-card"><strong>{title}</strong><h3>{names}</h3><p>适合区域门店建立进口食品基础货架。</p><div><span>{count}</span><button type="button">查看组合</button></div></article>;
 }
 
 function SelectionLine({ icon, label, value }: { icon: string; label: string; value: string }) {
-  return (
-    <div className="selection-line">
-      <span>{icon}</span>
-      <p>{label}</p>
-      <strong>{value}</strong>
-    </div>
-  );
+  return <div className="selection-line"><span>{icon}</span><p>{label}</p><strong>{value}</strong></div>;
 }
 
 function TrustCard({ icon, title, text }: { icon: string; title: string; text: string }) {
-  return (
-    <article className="trust-card">
-      <b>{icon}</b>
-      <div>
-        <strong>{title}</strong>
-        <p>{text}</p>
-      </div>
-    </article>
-  );
+  return <article className="trust-card"><b>{icon}</b><div><strong>{title}</strong><p>{text}</p></div></article>;
 }
 
 export default function Home() {
   const [view, setView] = useState<View>("dashboard");
-  const [selectedCountry, setSelectedCountry] = useState("全部");
   const [selectedId, setSelectedId] = useState(products[0].id);
-  const selectedProduct = products.find((product) => product.id === selectedId) ?? products[0];
+  const selectedProduct = useMemo(() => products.find((product) => product.id === selectedId) ?? products[0], [selectedId]);
+
+  if (view === "login") {
+    return <LoginPage setView={setView} />;
+  }
 
   return (
     <AppShell activeView={view} setView={setView}>
       {view === "dashboard" ? <Dashboard setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "catalog" ? (
-        <Catalog
-          selectedCountry={selectedCountry}
-          setSelectedCountry={setSelectedCountry}
-          setView={setView}
-          setSelectedId={setSelectedId}
-        />
-      ) : null}
+      {view === "catalog" ? <Catalog setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "procurement" ? <ProcurementProgress setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "progress" ? <ProgressBoard setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} setView={setView} /> : null}
       {view === "detail" ? <DetailPage product={selectedProduct} setView={setView} /> : null}
-      {view === "account" ? <SimpleAdminPage title="企业账户" text="企业主账户下可管理采购员工、权限和消息通知。" /> : null}
-      {view === "reports" ? <SimpleAdminPage title="数据报表" text="后续用于查看商品浏览、采购意向、成团效率和费用拆解数据。" /> : null}
+      {view === "clients" ? <ClientsPage /> : null}
+      {view === "reports" ? <ReportsPage /> : null}
+      {view === "messages" ? <MessagesPage /> : null}
+      {view === "help" ? <HelpPage /> : null}
     </AppShell>
   );
 }
