@@ -1784,6 +1784,51 @@ function HelpPage() {
 
 function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product; setView: (view: View) => void }) {
   const pct = progressOf(selectedProduct);
+  const [quantityBoxes, setQuantityBoxes] = useState("120");
+  const [receivingRegion] = useState("山东区域仓");
+  const [expectedArrivalWindow] = useState("2026 年 Q4");
+  const [note, setNote] = useState("");
+  const [submitState, setSubmitState] = useState<{
+    status: "idle" | "submitting" | "success" | "error";
+    message: string;
+    id?: string;
+  }>({ status: "idle", message: "" });
+
+  const submitIntention = async () => {
+    setSubmitState({ status: "submitting", message: "正在提交采购意向..." });
+    try {
+      const response = await fetch("/api/purchase-intentions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: selectedProduct.id,
+          quantityBoxes,
+          receivingRegion,
+          expectedArrivalWindow,
+          note,
+        }),
+      });
+      const result = (await response.json()) as {
+        purchaseIntention?: { id: string };
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(result.error ?? "提交失败");
+      }
+
+      setSubmitState({
+        status: "success",
+        message: "采购意向已提交，平台已记录并进入成团汇总。",
+        id: result.purchaseIntention?.id,
+      });
+    } catch (error) {
+      setSubmitState({
+        status: "error",
+        message: error instanceof Error ? error.message : "提交失败",
+      });
+    }
+  };
 
   return (
     <>
@@ -1793,22 +1838,28 @@ function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product;
           <h2 className="section-title">商品信息</h2>
           <div className="form-grid">
             <label><span>商品</span><button className="field-button product-field" type="button"><ProductImage product={selectedProduct} size="mini" /><strong>{selectedProduct.cnName}</strong><em>⌄</em></button></label>
-            <label><span>意向数量</span><div className="number-field"><input defaultValue="120" aria-label="意向数量" /><b>箱</b></div></label>
-            <label><span>收货区域</span><button className="field-button" type="button">山东区域仓 <em>⌄</em></button></label>
-            <label><span>期望到货窗口</span><button className="field-button" type="button">2026 年 Q4 <em>⌄</em></button></label>
+            <label><span>意向数量</span><div className="number-field"><input value={quantityBoxes} onChange={(event) => setQuantityBoxes(event.target.value)} aria-label="意向数量" /><b>箱</b></div></label>
+            <label><span>收货区域</span><button className="field-button" type="button">{receivingRegion} <em>⌄</em></button></label>
+            <label><span>期望到货窗口</span><button className="field-button" type="button">{expectedArrivalWindow} <em>⌄</em></button></label>
           </div>
-          <label className="note-field"><span>备注（选填）</span><textarea placeholder="填写陈列计划、门店覆盖、采购审批要求或其他说明" maxLength={200} /><small>0 / 200</small></label>
+          <label className="note-field"><span>备注（选填）</span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="填写陈列计划、门店覆盖、采购审批要求或其他说明" maxLength={200} /><small>{note.length} / 200</small></label>
           <div className="intent-upload-block">
             <h3>采购附件</h3>
             <p>可上传企业内部审批、门店陈列计划或付款前置资料，上传后进入资料整理。</p>
             <UploadDropzone label="采购审批文件 / 陈列计划 / 其他补充资料" />
           </div>
           <div className="notice"><b>i</b><span>提交后平台只记录企业采购意向，达到 20 尺柜后，平台发起二次确认；正式采购前再确认价格口径、合同、预付款和交期。</span></div>
-          <button className="primary-button submit-button" type="button">提交意向</button>
+          {submitState.status !== "idle" ? (
+            <div className={`submit-result ${submitState.status}`}>
+              <strong>{submitState.message}</strong>
+              {submitState.id ? <span>意向单号：{submitState.id}</span> : null}
+            </div>
+          ) : null}
+          <button className="primary-button submit-button" type="button" onClick={submitIntention} disabled={submitState.status === "submitting"}>{submitState.status === "submitting" ? "提交中..." : "提交意向"}</button>
         </section>
         <aside className="intention-side">
           <section className="panel current-product"><h2>当前商品</h2><div className="current-product-body"><ProductImage product={selectedProduct} size="thumb" /><div><h3>{selectedProduct.cnName}</h3><p>{selectedProduct.spec} · {selectedProduct.caseSpec}</p><PriceBlock product={selectedProduct} compact /></div></div><button className="soft-button" type="button" onClick={() => setView("detail")}>查看商品详情 →</button></section>
-          <section className="panel selection-card"><h2>当前选择</h2><SelectionLine icon="▰" label="意向数量" value="120 箱" /><SelectionLine icon="⌖" label="收货区域" value="山东区域仓" /><SelectionLine icon="□" label="期望到货窗口" value="2026 年 Q4" /><div className="selection-progress"><div><span>成团进度</span><strong>{pct}%</strong></div><ProgressBar value={pct} /><small>距离成团目标 {100 - pct}%</small></div></section>
+          <section className="panel selection-card"><h2>当前选择</h2><SelectionLine icon="▰" label="意向数量" value={`${quantityBoxes || 0} 箱`} /><SelectionLine icon="⌖" label="收货区域" value={receivingRegion} /><SelectionLine icon="□" label="期望到货窗口" value={expectedArrivalWindow} /><div className="selection-progress"><div><span>成团进度</span><strong>{pct}%</strong></div><ProgressBar value={pct} /><small>距离成团目标 {100 - pct}%</small></div></section>
           <section className="rule-card"><h2>意向规则</h2><p>企业可修改或撤回意向；成团后二次确认前，平台不应对外承诺最终成交价格。</p><button className="plain-link" type="button">查看平台规则 →</button></section>
         </aside>
       </div>
