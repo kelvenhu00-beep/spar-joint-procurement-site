@@ -49,6 +49,7 @@ type Product = {
   moq: string;
   currentBoxes: number;
   targetBoxes: number;
+  last12MonthBoxes: number;
   tags: string[];
   summary: string;
   decisionNote: string;
@@ -73,6 +74,7 @@ const products: Product[] = [
     moq: "MOQ 8 箱起订",
     currentBoxes: 2110,
     targetBoxes: 2600,
+    last12MonthBoxes: 12860,
     tags: ["德国", "糖果"],
     summary: "消费者第一眼能识别彩色软糖和儿童零食场景，适合用来提升进口糖果区活跃度。",
     decisionNote: "适合亲子客群、节庆糖果、收银台附近陈列；正式推进前需要确认进口授权。",
@@ -95,6 +97,7 @@ const products: Product[] = [
     moq: "MOQ 10 箱起订",
     currentBoxes: 3820,
     targetBoxes: 4600,
+    last12MonthBoxes: 18640,
     tags: ["奥地利", "威化饼干"],
     summary: "粉色包装和奥地利威化身份能快速形成记忆点，适合激发采购对陈列效果的想象。",
     decisionNote: "适合下午茶、女神节、办公室零食、会员日加购等场景，可作为进口零食基础款。",
@@ -117,6 +120,7 @@ const products: Product[] = [
     moq: "MOQ 6 箱起订",
     currentBoxes: 1460,
     targetBoxes: 2100,
+    last12MonthBoxes: 9240,
     tags: ["英国", "饼干"],
     summary: "英国黄油酥饼身份清晰，适合提升门店进口食品质感，并承接节庆礼赠需求。",
     decisionNote: "适合精品超市、会员店、办公零食区和下午茶组合陈列，价格带要结合区域客群验证。",
@@ -139,6 +143,7 @@ const products: Product[] = [
     moq: "MOQ 12 箱起订",
     currentBoxes: 980,
     targetBoxes: 2400,
+    last12MonthBoxes: 6820,
     tags: ["英国", "茶叶"],
     summary: "标准英式红茶，消费者认知面宽，适合家庭及办公饮用场景。",
     decisionNote: "适合早餐食品区、进口茶饮区和办公室团购场景，需重点确认中文标签资料。",
@@ -161,6 +166,7 @@ const products: Product[] = [
     moq: "MOQ 10 箱起订",
     currentBoxes: 3180,
     targetBoxes: 5200,
+    last12MonthBoxes: 15480,
     tags: ["德国", "巧克力"],
     summary: "方形巧克力包装识别强，适合进口巧克力基础陈列和节庆组合。",
     decisionNote: "夏季需要确认温控物流方案，中文标签和剩余保质期要进入采购前核验。",
@@ -183,6 +189,7 @@ const products: Product[] = [
     moq: "MOQ 6 箱起订",
     currentBoxes: 740,
     targetBoxes: 1800,
+    last12MonthBoxes: 5360,
     tags: ["意大利", "咖啡"],
     summary: "意式咖啡粉适合家庭咖啡和办公室茶水间场景，能与饼干茶点组合销售。",
     decisionNote: "适合精品超市、会员店和办公消费渠道，重点确认烘焙日期和中文标签。",
@@ -205,6 +212,7 @@ const products: Product[] = [
     moq: "MOQ 8 箱起订",
     currentBoxes: 360,
     targetBoxes: 1500,
+    last12MonthBoxes: 3120,
     tags: ["德国", "洗衣液"],
     summary: "进口家庭清洁品适合拉开日化货架层次，家庭装规格有稳定复购属性。",
     decisionNote: "需确认日化进口合规资料、中文标签和外箱破损控制。",
@@ -227,6 +235,7 @@ const products: Product[] = [
     moq: "MOQ 10 箱起订",
     currentBoxes: 520,
     targetBoxes: 1600,
+    last12MonthBoxes: 4280,
     tags: ["德国", "身体乳"],
     summary: "高认知身体护理品牌，适合进口个护区和冬季滋润主题陈列。",
     decisionNote: "需确认化妆品/个护进口资料、标签备案和区域价格体系。",
@@ -746,6 +755,7 @@ function Dashboard({
                   <Spec label="单位" value={product.caseSpec} />
                   <Spec label="保质期" value={product.shelfLife} />
                 </div>
+                <PurchaseVolumeSignal product={product} />
                 <div className="price-split">
                   <PriceBlock product={product} />
                   <div>
@@ -950,6 +960,7 @@ function Catalog({
                 <h2>{product.cnName}</h2>
                 <p>{product.spec}</p>
                 <PriceBlock product={product} compact />
+                <PurchaseVolumeSignal product={product} compact />
                 <small>{product.moq} · 非最终成交报价</small>
                 <div>
                   <button
@@ -1785,6 +1796,8 @@ function DetailPage({
             <Spec label="预估毛利带" value={product.gross} />
             <Spec label="20 尺柜目标" value={`${product.targetBoxes.toLocaleString()} 箱`} />
             <Spec label="当前总意向" value={`${product.currentBoxes.toLocaleString()} 箱`} />
+            <Spec label="过去12个月总采购量" value={`${product.last12MonthBoxes.toLocaleString()} 箱`} />
+            <Spec label="历史采购口径" value="已完成采购箱数" />
           </div>
           <CostDisclosure />
           <ProductFlowFilePanel product={product} isBuyer={isBuyer} operatorRole={operatorRole} setView={setView} />
@@ -1950,6 +1963,16 @@ function PriceBlock({ product, compact = false }: { product: Product; compact?: 
       <span>{priceTermLabel}</span>
       <strong>{product.price}</strong>
       <small>非 FOB/CIF/EXW 最终报价</small>
+    </div>
+  );
+}
+
+function PurchaseVolumeSignal({ product, compact = false }: { product: Product; compact?: boolean }) {
+  return (
+    <div className={`purchase-volume-signal ${compact ? "compact" : ""}`}>
+      <span>过去12个月总采购量</span>
+      <strong>{product.last12MonthBoxes.toLocaleString()} 箱</strong>
+      <small>已完成采购箱数</small>
     </div>
   );
 }

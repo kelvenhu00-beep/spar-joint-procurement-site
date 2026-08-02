@@ -3407,6 +3407,50 @@ label span {
   line-height: var(--font-h3-line);
 }
 
+.purchase-volume-signal {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-1) var(--space-3);
+  align-items: center;
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid rgba(20, 128, 90, 0.2);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-50);
+}
+
+.purchase-volume-signal span {
+  color: var(--color-gray-600);
+  font-size: var(--font-caption-size);
+  line-height: var(--font-caption-line);
+  font-weight: 600;
+}
+
+.purchase-volume-signal strong {
+  justify-self: end;
+  color: var(--color-primary-800);
+  font-size: var(--font-h3-size);
+  line-height: var(--font-h3-line);
+  font-weight: 800;
+}
+
+.purchase-volume-signal small {
+  grid-column: 1 / -1;
+  color: var(--color-gray-500);
+  font-size: var(--font-caption-size);
+  line-height: var(--font-caption-line);
+}
+
+.purchase-volume-signal.compact {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+}
+
+.purchase-volume-signal.compact strong {
+  font-size: var(--font-body-size);
+  line-height: var(--font-body-line);
+}
+
 .catalog-card .price-block {
   margin-top: var(--space-3);
 }
