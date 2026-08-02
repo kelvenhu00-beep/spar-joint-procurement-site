@@ -6,6 +6,8 @@ type View =
   | "login"
   | "dashboard"
   | "catalog"
+  | "documents"
+  | "aiReview"
   | "procurement"
   | "progress"
   | "intention"
@@ -227,7 +229,8 @@ const buyerNavItems: NavItem[] = [
   { label: "商品目录", view: "catalog", icon: "▤" },
   { label: "成团进度", view: "progress", icon: "▧" },
   { label: "采购意向", view: "intention", icon: "◇" },
-  { label: "我的采购进度", view: "procurement", icon: "▥" },
+  { label: "合同与单据", view: "documents", icon: "▦" },
+  { label: "履约进度", view: "procurement", icon: "▥" },
   { label: "消息中心", view: "messages", icon: "○", badge: "3", dividerBefore: true },
   { label: "帮助中心", view: "help", icon: "?" },
 ];
@@ -235,6 +238,8 @@ const buyerNavItems: NavItem[] = [
 const operatorNavItems: NavItem[] = [
   { label: "运营工作台", view: "dashboard", icon: "⌂" },
   { label: "商品资料库", view: "catalog", icon: "▤" },
+  { label: "资料文件中心", view: "documents", icon: "▦" },
+  { label: "AI 初审队列", view: "aiReview", icon: "◎", badge: "18" },
   { label: "成团管理", view: "progress", icon: "▧" },
   { label: "意向审核", view: "intentionAdmin", icon: "◇" },
   { label: "采购履约", view: "procurement", icon: "▥" },
@@ -287,6 +292,75 @@ const costItems = [
 const catalogCategories = ["全部商品", "休闲食品", "饮料冲调", "粮油调味", "个人护理", "家庭清洁", "母婴用品", "宠物用品", "美妆护肤", "保健品", "酒类", "更多⌄"];
 
 const countryTabs = ["全部", "德国", "奥地利", "英国", "意大利"];
+
+const buyerFileItems = [
+  ["商品资料包", "Manner 曼纳威化饼干", "已审核", "商品图片、规格、箱规、中文标签状态"],
+  ["预估到仓成本说明", "HARIBO 哈瑞宝金熊软糖", "可下载", "供货价、运输、税费、二段物流、服务费摘要"],
+  ["采购意向回执", "广东嘉荣集团", "可下载", "120 箱 · 山东区域仓 · 2026 年 Q4"],
+  ["二次确认通知书", "Manner 曼纳威化饼干", "待确认", "成团进度 83%，等待企业正式确认"],
+  ["企业采购合同", "SPAR20260802001", "待生成", "正式确认后生成合同与销售订单"],
+  ["付款通知书", "SPAR20260802001", "待生成", "预付款、尾款和结算节点"],
+  ["二段配送单", "山东区域仓", "待上传", "出库后开放下载"],
+  ["签收单 / 发票", "广东嘉荣集团", "待上传", "签收和对账完成后开放下载"],
+];
+
+const operatorFileItems = [
+  ["商品规格书", "Manner 曼纳威化饼干", "AI初审中", "待抽取规格、箱规、保质期、储存条件"],
+  ["品牌授权文件", "HARIBO", "待人工复核", "需确认中国区销售权限和有效期"],
+  ["供应商报价单", "Ritter Sport", "需补正", "币种和报价有效期缺失"],
+  ["Proforma Invoice", "PO20260802001", "已归档", "金额已写入海外采购订单"],
+  ["Commercial Invoice", "CUSTOMS20260802001", "待上传", "报关前必传"],
+  ["Packing List", "CUSTOMS20260802001", "待上传", "报关前必传"],
+  ["提单 / Sea Waybill", "柜号待定", "待上传", "订舱后上传并抽取柜号、船期"],
+  ["税单与完税证明", "报关单号待定", "待上传", "清关后归档到财务成本"],
+];
+
+const reviewItems = [
+  {
+    file: "Manner威化_商品规格书_V2.pdf",
+    owner: "商品开发",
+    stage: "商品建档",
+    risk: "中",
+    status: "待人工复核",
+    extracted: ["规格 75g", "24 盒 / 箱", "保质期 12 个月"],
+    issue: "外箱尺寸未识别，需要补录长宽高。",
+  },
+  {
+    file: "HARIBO_品牌授权_2026.pdf",
+    owner: "供应商对接",
+    stage: "授权准入",
+    risk: "高",
+    status: "需补正",
+    extracted: ["品牌 HARIBO", "有效期 2026-12-31", "区域 中国大陆待确认"],
+    issue: "授权区域文字不清晰，不能直接开放二次确认。",
+  },
+  {
+    file: "RitterSport_供应商报价单.xlsx",
+    owner: "价格核算",
+    stage: "报价测算",
+    risk: "中",
+    status: "需补正",
+    extracted: ["币种 EUR", "单价 1.42", "MOQ 10 箱"],
+    issue: "报价有效期缺失，系统不能锁定预估到仓成本版本。",
+  },
+  {
+    file: "PI_PO20260802001_Manner.pdf",
+    owner: "财务结算",
+    stage: "海外采购",
+    risk: "低",
+    status: "待人工复核",
+    extracted: ["总金额 EUR 8,640", "付款条件 30% 预付", "供应商 Manner"],
+    issue: "金额与付款申请一致，等待财务确认。",
+  },
+];
+
+const workflowStages = [
+  ["商品建档", "上传商品图、规格书、授权、中文标签资料"],
+  ["AI 初审", "识别文件类型，抽取字段，提示缺失和冲突"],
+  ["人工复核", "商品、关务、财务、法务按职责确认"],
+  ["企业下载", "审核通过后开放商品资料、合同、付款和交付文件"],
+  ["业务推进", "二次确认、采购、报关、入库、配送、结算"],
+];
 
 function progressOf(product: Product) {
   return Math.round((product.currentBoxes / product.targetBoxes) * 100);
@@ -487,13 +561,13 @@ function Dashboard({
             <MetricCard icon="▱" label="可采购商品" value="8" hint="德国、奥地利、英国、意大利商品" />
             <MetricCard icon="♙" label="接近成团" value="3" hint="超过 70% 的单品" />
             <MetricCard icon="▰" label="我的意向" value="12" hint="待二次确认 3 个" />
-            <MetricCard icon="▤" label="成本拆解" value="5 项" hint="供货价、运输、税费、配送、服务费" />
+            <MetricCard icon="▦" label="可下载单据" value="18" hint="资料包、回执、合同、付款和发票" />
           </>
         ) : (
           <>
             <MetricCard icon="▱" label="待完善商品" value="18" hint="缺实物图、外箱图或标签资料" />
-            <MetricCard icon="♙" label="待核价商品" value="9" hint="供应商报价和税费需复核" />
-            <MetricCard icon="▰" label="待审核意向" value="37" hint="来自 12 家区域零售企业" />
+            <MetricCard icon="◎" label="AI 待初审" value="24" hint="规格、报价、报关、付款文件" />
+            <MetricCard icon="▦" label="待人工复核" value="16" hint="高风险文件 4 份" />
             <MetricCard icon="▤" label="接近成团" value="3" hint="需要运营跟进二次确认" />
           </>
         )}
@@ -594,6 +668,22 @@ function Dashboard({
             <strong>{isBuyer ? "采购建议" : "运营建议"}</strong>
             <p>{isBuyer ? "提交基础意向，并要求平台补充实物包装和外箱照片。" : "优先复核接近成团商品的授权、价格口径、HS 编码和物流估算。"}</p>
             <p>{isBuyer ? "下午茶主题、女神节、办公零食、会员日加购。" : "先处理 Manner、HARIBO、JACOB'S 的二次确认资料。"}</p>
+          </section>
+
+          <section className="panel quick-file-card">
+            <h2>{isBuyer ? "合同与单据" : "文件处理"}</h2>
+            <div className="quick-file-list">
+              {(isBuyer ? buyerFileItems.slice(0, 3) : operatorFileItems.slice(0, 3)).map((item) => (
+                <button key={`${item[0]}-${item[1]}`} type="button" onClick={() => setView(isBuyer ? "documents" : item[2] === "AI初审中" ? "aiReview" : "documents")}>
+                  <span>{item[0]}</span>
+                  <strong>{item[2]}</strong>
+                  <small>{item[1]}</small>
+                </button>
+              ))}
+            </div>
+            <button className="outline-button full" type="button" onClick={() => setView(isBuyer ? "documents" : "aiReview")}>
+              {isBuyer ? "进入文件中心" : "进入 AI 初审队列"}
+            </button>
           </section>
 
           <section className="status-card">
@@ -979,6 +1069,208 @@ function IntentionAdminPage({ setView, setSelectedId }: { setView: (view: View) 
   );
 }
 
+function FileCenterPage({ portal, setView }: { portal: Portal; setView: (view: View) => void }) {
+  const isBuyer = portal === "buyer";
+  const files = isBuyer ? buyerFileItems : operatorFileItems;
+  const metrics = isBuyer
+    ? [
+        ["可下载文件", "18", "商品资料、意向、合同、付款、签收"],
+        ["待确认文件", "3", "二次确认和最终报价"],
+        ["待上传凭证", "2", "付款证明、收货异常照片"],
+        ["历史归档", "42", "按订单和商品归档"],
+      ]
+    : [
+        ["待上传文件", "31", "报关、物流、财务节点"],
+        ["AI 初审中", "24", "等待字段抽取和一致性检查"],
+        ["待人工复核", "16", "商品、关务、财务、法务分工"],
+        ["已归档文件", "128", "按商品、订单、柜号归档"],
+      ];
+
+  return (
+    <>
+      <PageTitle
+        title={isBuyer ? "合同与单据" : "资料文件中心"}
+        subtitle={isBuyer ? "下载采购决策、合同、付款、交付和结算文件" : "上传、初审、复核和归档商品、采购、报关、物流、财务文件"}
+      />
+
+      <section className="metric-strip document-metrics">
+        {metrics.map((metric, index) => (
+          <MetricCard key={metric[0]} icon={["▦", "◎", "◇", "▤"][index]} label={metric[0]} value={metric[1]} hint={metric[2]} />
+        ))}
+      </section>
+
+      <section className="workflow-strip">
+        {workflowStages.map((stage, index) => (
+          <article key={stage[0]} className={index === 1 && !isBuyer ? "active" : ""}>
+            <b>{index + 1}</b>
+            <strong>{stage[0]}</strong>
+            <span>{stage[1]}</span>
+          </article>
+        ))}
+      </section>
+
+      <section className="document-layout">
+        <article className="panel document-table-panel">
+          <div className="panel-head">
+            <div>
+              <h2>{isBuyer ? "我的文件" : "业务文件清单"}</h2>
+              <p>{isBuyer ? "只展示本企业可见文件" : "按业务节点显示上传、初审、复核和归档状态"}</p>
+            </div>
+            <div className="file-tools">
+              <input placeholder="搜索文件、商品、订单号" />
+              <button className="outline-button" type="button">筛选</button>
+              {isBuyer ? null : <button className="primary-button" type="button">批量上传</button>}
+            </div>
+          </div>
+          <div className="file-list">
+            {files.map((file) => (
+              <article className="file-row" key={`${file[0]}-${file[1]}`}>
+                <div className="file-main">
+                  <span className="file-type-icon">▦</span>
+                  <div>
+                    <h3>{file[0]}</h3>
+                    <p>{file[1]}</p>
+                    <small>{file[3]}</small>
+                  </div>
+                </div>
+                <StatusPill status={file[2]} />
+                <div className="file-actions">
+                  {isBuyer ? (
+                    <>
+                      <button className="outline-button" type="button" disabled={file[2] === "待生成" || file[2] === "待上传"}>
+                        下载
+                      </button>
+                      <button className="soft-button" type="button">
+                        查看
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="outline-button" type="button">
+                        上传
+                      </button>
+                      <button className="primary-button" type="button" onClick={() => setView(file[2] === "AI初审中" || file[2] === "需补正" ? "aiReview" : "documents")}>
+                        {file[2] === "已归档" ? "查看" : "处理"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <aside className="document-side">
+          <section className="panel upload-panel">
+            <h2>{isBuyer ? "上传窗口" : "后台上传窗口"}</h2>
+            <UploadDropzone label={isBuyer ? "付款证明 / 收货异常照片" : "规格书 / 报价 / 报关 / 物流 / 财务文件"} />
+            <div className="upload-fields">
+              <button type="button">文件类型⌄</button>
+              <button type="button">绑定订单⌄</button>
+              <button type="button">可见范围⌄</button>
+            </div>
+            <button className="primary-button full" type="button">
+              {isBuyer ? "提交资料" : "上传并进入 AI 初审"}
+            </button>
+          </section>
+
+          <section className="panel checklist-panel">
+            <h2>{isBuyer ? "文件包" : "缺失预警"}</h2>
+            {[
+              ["商品资料包", "已审核"],
+              ["成本说明", "可下载"],
+              ["合同订单", isBuyer ? "待生成" : "待复核"],
+              ["报关资料", isBuyer ? "状态可见" : "缺 2 份"],
+              ["签收结算", "待上传"],
+            ].map((item) => (
+              <div key={item[0]} className="checkline">
+                <span>{item[0]}</span>
+                <StatusPill status={item[1]} />
+              </div>
+            ))}
+          </section>
+        </aside>
+      </section>
+    </>
+  );
+}
+
+function AiReviewPage({ setView }: { setView: (view: View) => void }) {
+  return (
+    <>
+      <PageTitle title="AI 初审队列" subtitle="上传文件后先识别类型、抽取字段、检查缺失和一致性，再进入人工复核" />
+      <section className="metric-strip ai-metrics">
+        <MetricCard icon="◎" label="待初审" value="24" hint="近 24 小时新增 9 份" />
+        <MetricCard icon="!" label="需补正" value="7" hint="授权、报价、装箱资料问题较多" />
+        <MetricCard icon="◇" label="待人工复核" value="16" hint="按岗位分配处理" />
+        <MetricCard icon="▦" label="自动抽取字段" value="186" hint="待确认后写入业务数据" />
+      </section>
+
+      <section className="ai-layout">
+        <article className="panel ai-queue-panel">
+          <div className="panel-head">
+            <div>
+              <h2>待处理文件</h2>
+              <p>AI 只做初步审核，最终以人工复核为准</p>
+            </div>
+            <div className="file-tools">
+              <button className="outline-button" type="button">风险等级⌄</button>
+              <button className="outline-button" type="button">责任岗位⌄</button>
+              <button className="primary-button" type="button">批量分派</button>
+            </div>
+          </div>
+          <div className="review-list">
+            {reviewItems.map((item) => (
+              <article className="review-card" key={item.file}>
+                <div className="review-head">
+                  <div>
+                    <h3>{item.file}</h3>
+                    <p>{item.stage} · {item.owner}</p>
+                  </div>
+                  <div className="review-badges">
+                    <span className={`risk-badge risk-${item.risk}`}>{item.risk}风险</span>
+                    <StatusPill status={item.status} />
+                  </div>
+                </div>
+                <div className="extracted-grid">
+                  {item.extracted.map((field) => (
+                    <span key={field}>{field}</span>
+                  ))}
+                </div>
+                <div className="review-issue">
+                  <strong>初审提示</strong>
+                  <p>{item.issue}</p>
+                </div>
+                <div className="review-actions">
+                  <button className="outline-button" type="button">查看原件</button>
+                  <button className="outline-button" type="button">退回补正</button>
+                  <button className="primary-button" type="button">确认入库</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </article>
+
+        <aside className="ai-side">
+          <section className="panel upload-panel">
+            <h2>上传新文件</h2>
+            <UploadDropzone label="拖入文件或点击上传" />
+            <button className="primary-button full" type="button">上传并初审</button>
+          </section>
+
+          <section className="panel ai-rule-panel">
+            <h2>初审检查项</h2>
+            {["文件类型是否匹配", "关键字段是否完整", "金额、数量、币种是否一致", "有效期和日期是否异常", "敏感信息是否需要脱敏", "是否缺少下一节点必传文件"].map((item) => (
+              <div key={item}><span>✓</span>{item}</div>
+            ))}
+            <button className="outline-button full" type="button" onClick={() => setView("documents")}>返回文件中心</button>
+          </section>
+        </aside>
+      </section>
+    </>
+  );
+}
+
 function ProgressBoard({
   setView,
   setSelectedId,
@@ -1256,6 +1548,11 @@ function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product;
             <label><span>期望到货窗口</span><button className="field-button" type="button">2026 年 Q4 <em>⌄</em></button></label>
           </div>
           <label className="note-field"><span>备注（选填）</span><textarea placeholder="填写陈列计划、门店覆盖、采购审批要求或其他说明" maxLength={200} /><small>0 / 200</small></label>
+          <div className="intent-upload-block">
+            <h3>采购附件</h3>
+            <p>可上传企业内部审批、门店陈列计划或付款前置资料，上传后进入资料整理。</p>
+            <UploadDropzone label="采购审批文件 / 陈列计划 / 其他补充资料" />
+          </div>
           <div className="notice"><b>i</b><span>提交后平台只记录企业采购意向，达到 20 尺柜后，平台发起二次确认；正式采购前再确认价格口径、合同、预付款和交期。</span></div>
           <button className="primary-button submit-button" type="button">提交意向</button>
         </section>
@@ -1293,11 +1590,51 @@ function DetailPage({ product, portal, setView }: { product: Product; portal: Po
             <Spec label="当前总意向" value={`${product.currentBoxes.toLocaleString()} 箱`} />
           </div>
           <CostDisclosure />
+          <section className="detail-documents">
+            <div className="panel-head compact">
+              <h2>{isBuyer ? "商品资料与下载" : "资料维护与初审"}</h2>
+              <p>{isBuyer ? "采购决策需要的核心资料状态" : "后台上传资料后进入 AI 初审和人工复核"}</p>
+            </div>
+            <div className="detail-doc-grid">
+              {(isBuyer
+                ? [["商品资料包", "已审核"], ["预估到仓成本说明", "可下载"], ["中文标签状态", "待人工复核"], ["授权状态", "待确认"]]
+                : [["规格书", "AI初审中"], ["商品图片包", "已归档"], ["中文标签资料", "待人工复核"], ["品牌授权", "需补正"]]
+              ).map((item) => (
+                <div key={item[0]}>
+                  <span>{item[0]}</span>
+                  <StatusPill status={item[1]} />
+                </div>
+              ))}
+            </div>
+            <div className="detail-doc-actions">
+              <button className="outline-button" type="button" onClick={() => setView("documents")}>
+                {isBuyer ? "查看文件" : "进入文件中心"}
+              </button>
+              <button className="primary-button" type="button" onClick={() => setView(isBuyer ? "intention" : "aiReview")}>
+                {isBuyer ? "提交意向" : "处理初审"}
+              </button>
+            </div>
+          </section>
           <div className="detail-progress"><div><strong>{pct}%</strong><span>当前成团进度</span></div><ProgressBar value={pct} /></div>
           <div className="card-actions detail-actions"><button className="outline-button" type="button" onClick={() => setView("catalog")}>返回{isBuyer ? "目录" : "资料库"}</button><button className="primary-button" type="button" onClick={() => setView(isBuyer ? "intention" : "intentionAdmin")}>{isBuyer ? "提交采购意向" : "查看意向审核"}</button></div>
         </div>
       </section>
     </>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
+  const normalized = status.includes("补") || status.includes("高") || status.includes("缺") ? "danger" : status.includes("待") || status.includes("AI") ? "pending" : status.includes("归档") || status.includes("审核") || status.includes("下载") ? "done" : "";
+  return <span className={`status-pill ${normalized}`}>{status}</span>;
+}
+
+function UploadDropzone({ label }: { label: string }) {
+  return (
+    <button className="upload-dropzone" type="button">
+      <b>↑</b>
+      <strong>{label}</strong>
+      <span>支持 PDF、图片、Excel、Word；上传后保留版本和审核记录</span>
+    </button>
   );
 }
 
@@ -1382,6 +1719,8 @@ export default function Home() {
     <AppShell activeView={view} setView={setView} portal={portal} setPortal={setPortal} onLogout={logout}>
       {view === "dashboard" ? <Dashboard portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "catalog" ? <Catalog portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "documents" ? <FileCenterPage portal={portal} setView={setView} /> : null}
+      {view === "aiReview" ? <AiReviewPage setView={setView} /> : null}
       {view === "procurement" ? <ProcurementProgress portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "progress" ? <ProgressBoard setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} setView={setView} /> : null}
