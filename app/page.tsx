@@ -105,8 +105,8 @@ const products: Product[] = [
   },
   {
     id: "walkers-fingers-250g",
-    cnName: "JACOB'S 沃克斯黄油酥饼",
-    brand: "JACOB'S",
+    cnName: "Walker's 沃克斯黄油酥饼",
+    brand: "Walker's",
     enName: "Shortbread Fingers 250g",
     country: "英国",
     flag: "🇬🇧",
@@ -263,7 +263,7 @@ const operatorNavItems: NavItem[] = [
   { label: "意向审核", view: "intentionAdmin", icon: "◇" },
   { label: "采购履约", view: "procurement", icon: "▥" },
   { label: "企业客户", view: "clients", icon: "♙" },
-  { label: "数据报表", view: "reports", icon: "▥" },
+  { label: "数据报表", view: "reports", icon: "▣" },
   { label: "消息中心", view: "messages", icon: "○", badge: "3", dividerBefore: true },
   { label: "帮助中心", view: "help", icon: "?" },
 ];
@@ -352,6 +352,8 @@ const operatorFileItems = [
 const reviewItems = [
   {
     file: "Manner威化_商品规格书_V2.pdf",
+    product: "Manner 曼纳威化饼干",
+    businessNo: "SKU-MANNER-75G",
     owner: "商品开发",
     stage: "商品建档",
     risk: "中",
@@ -361,6 +363,8 @@ const reviewItems = [
   },
   {
     file: "HARIBO_品牌授权_2026.pdf",
+    product: "HARIBO 哈瑞宝金熊软糖",
+    businessNo: "AUTH-HARIBO-CN-2026",
     owner: "供应商对接",
     stage: "授权准入",
     risk: "高",
@@ -370,6 +374,8 @@ const reviewItems = [
   },
   {
     file: "RitterSport_供应商报价单.xlsx",
+    product: "Ritter Sport 瑞特斯波德牛奶巧克力",
+    businessNo: "QUOTE-RITTER-2026Q4",
     owner: "价格核算",
     stage: "报价测算",
     risk: "中",
@@ -379,6 +385,8 @@ const reviewItems = [
   },
   {
     file: "PI_PO20260802001_Manner.pdf",
+    product: "Manner 曼纳威化饼干",
+    businessNo: "PO20260802001",
     owner: "财务结算",
     stage: "海外采购",
     risk: "低",
@@ -402,7 +410,7 @@ const productFlowFiles = [
     timing: "上架前",
     owner: "商品开发 / 关务",
     files: ["商品图片", "规格书", "外箱图", "中文标签资料", "授权文件"],
-    status: "待总监审批",
+    status: "已审核",
     buyerStatus: "可下载",
     note: "决定企业是否愿意进一步看这个商品。",
   },
@@ -411,17 +419,17 @@ const productFlowFiles = [
     timing: "展示预估到仓成本前",
     owner: "价格核算 / 物流 / 关务",
     files: ["供应商报价单", "运费报价", "税费测算依据", "成本拆解表"],
-    status: "经理补资料中",
-    buyerStatus: "状态可见",
-    note: "没有成本文件，不允许展示预估到仓成本。",
+    status: "已审核",
+    buyerStatus: "可下载",
+    note: "成本文件已复核后，采购端才展示预估到仓成本。",
   },
   {
     stage: "企业意向与成团",
     timing: "企业提交意向后",
     owner: "订单运营 / 企业采购",
     files: ["采购意向回执", "企业补充说明", "成团汇总表"],
-    status: "待触发",
-    buyerStatus: "可下载",
+    status: "经理补资料中",
+    buyerStatus: "状态可见",
     note: "只绑定当前商品和当前企业意向，不展示其他企业明细。",
   },
   {
@@ -429,7 +437,7 @@ const productFlowFiles = [
     timing: "达到 20 尺柜后",
     owner: "订单运营 / 法务 / 财务",
     files: ["最终报价确认单", "交期确认单", "合同条款清单", "企业确认回执"],
-    status: "待触发",
+    status: "待总监审批",
     buyerStatus: "待生成",
     note: "意向转正式订单的分界点。",
   },
@@ -493,12 +501,33 @@ function progressOf(product: Product) {
   return Math.round((product.currentBoxes / product.targetBoxes) * 100);
 }
 
+function canDownloadStatus(status: string) {
+  return status === "可下载" || status === "已审核";
+}
+
+function decisionInfoRows(product: Product) {
+  const coldChain = product.category.includes("巧克力") || product.category.includes("身体乳");
+  return [
+    ["授权状态", product.brand === "HARIBO" ? "待补授权区域" : "销售授权已审核"],
+    ["中文标签状态", "中文标签初版已复核"],
+    ["HS 编码", product.category.includes("洗衣液") ? "3402.50" : product.category.includes("身体乳") ? "3304.99" : "1905 / 1806 待关务复核"],
+    ["税费口径", "系统预估 + 人工复核"],
+    ["剩余保质期", `不少于 ${product.shelfLife.replace(" 个月", "")} 个月的 70%`],
+    ["外箱尺寸", product.caseSpec.includes("24") ? "395×285×215 mm" : "待供应商确认"],
+    ["装柜依据", "按单品 20 尺柜箱数测算"],
+    ["储运要求", coldChain ? "避光控温，夏季需温控方案" : "常温干燥，避免挤压"],
+    ["成本版本有效期", "2026-09-30"],
+    ["建议零售价", product.priceBand],
+    ["预计交期", "二次确认后 45-60 天"],
+    ["供应商资质", "已建档，待年度复核"],
+  ];
+}
+
 function AppShell({
   activeView,
   setView,
   portal,
   operatorRole,
-  setPortal,
   onLogout,
   children,
 }: {
@@ -506,7 +535,6 @@ function AppShell({
   setView: (view: View) => void;
   portal: Portal;
   operatorRole: OperatorRole;
-  setPortal: (portal: Portal) => void;
   onLogout: () => void;
   children: React.ReactNode;
 }) {
@@ -552,19 +580,12 @@ function AppShell({
 
       <section className="workspace">
         <header className="app-topbar">
-          <button className="menu-button" type="button" aria-label="展开导航">
-            ☰
-          </button>
+          <div className="topbar-identity">
+            <strong>{profile.name}</strong>
+            <span>{profile.role}</span>
+          </div>
           <div className="topbar-actions">
-            <div className="portal-switch" aria-label="演示端口切换">
-              <button className={portal === "buyer" ? "active" : ""} type="button" onClick={() => setPortal("buyer")}>
-                企业采购端
-              </button>
-              <button className={portal === "operator" ? "active" : ""} type="button" onClick={() => setPortal("operator")}>
-                平台运营后台
-              </button>
-            </div>
-            {portal === "operator" ? <span className="role-readonly">{operatorRole === "manager" ? "经理权限" : "总监权限"}</span> : null}
+            <span className="role-readonly">{profile.authority}</span>
             <button className="icon-button alert" type="button" aria-label="消息" onClick={() => setView("messages")}>
               ♧
               <span>3</span>
@@ -672,7 +693,7 @@ function LoginPage({ onLogin }: { onLogin: (portal: Portal, operatorRole: Operat
         </small>
       </section>
       <footer className="login-footer">
-        <span>© 2024 SPAR 联采 | 进口商品 B2B 平台</span>
+        <span>© 2026 SPAR 联采 | 进口商品 B2B 平台</span>
         <span>隐私政策 | 用户协议 | 帮助中心</span>
         <span>简体中文⌄</span>
       </footer>
@@ -783,7 +804,7 @@ function Dashboard({
                       setView(isBuyer ? "intention" : "detail");
                     }}
                   >
-                    {isBuyer ? "加入采购" : "维护资料"}
+                    {isBuyer ? "提交意向" : "维护资料"}
                   </button>
                 </div>
               </article>
@@ -826,7 +847,7 @@ function Dashboard({
           <section className="advice-card">
             <strong>{isBuyer ? "采购建议" : "运营建议"}</strong>
             <p>{isBuyer ? "提交基础意向，并要求平台补充实物包装和外箱照片。" : "优先复核接近成团商品的授权、价格口径、HS 编码和物流估算。"}</p>
-            <p>{isBuyer ? "下午茶主题、女神节、办公零食、会员日加购。" : "先处理 Manner、HARIBO、JACOB'S 的二次确认资料。"}</p>
+            <p>{isBuyer ? "下午茶主题、女神节、办公零食、会员日加购。" : "先处理 Manner、HARIBO、Walker's 的二次确认资料。"}</p>
           </section>
 
           <section className="panel quick-file-card">
@@ -861,9 +882,9 @@ function Dashboard({
           <p>按消费场景组织商品，提升采购效率</p>
         </div>
         <div className="bundle-grid">
-          <Bundle title="欧洲早餐组合" names="Twinings + JACOB'S + Lavazza" count="共 6 个商品" />
+          <Bundle title="欧洲早餐组合" names="Twinings + Walker's + Lavazza" count="共 6 个商品" />
           <Bundle title="儿童糖果引流组合" names="HARIBO + Manner" count="共 4 个商品" />
-          <Bundle title="进口零食基础组合" names="Ritter Sport + Manner + JACOB'S" count="共 5 个商品" />
+          <Bundle title="进口零食基础组合" names="Ritter Sport + Manner + Walker's" count="共 5 个商品" />
         </div>
       </section>
     </>
@@ -921,8 +942,8 @@ function Catalog({
             <h2>筛选条件</h2>
             <button type="button">重置</button>
           </div>
-          <FilterGroup title="原产国/地区" items={["全部", "德国", "英国", "法国", "意大利", "西班牙"]} />
-          <FilterGroup title="品牌" items={["全部", "Haribo", "Jacob's", "Manner", "Twinings", "Ritter Sport"]} hasSearch />
+          <FilterGroup title="原产国/地区" items={["全部", "德国", "奥地利", "英国", "意大利"]} />
+          <FilterGroup title="品牌" items={["全部", "HARIBO", "Manner", "Walker's", "Twinings", "Ritter Sport"]} hasSearch />
           <div className="filter-block">
             <h3>预估到仓成本区间 (¥/箱)</h3>
             <div className="price-filter">
@@ -937,7 +958,7 @@ function Catalog({
 
         <section className="catalog-main">
           <div className="catalog-main-head">
-            <span>共 1,248 个商品</span>
+            <span>共 {products.length} 个商品</span>
             <div>
               <span>排序:</span>
               <button className="field-button compact" type="button">
@@ -962,16 +983,16 @@ function Catalog({
                 <PriceBlock product={product} compact />
                 <PurchaseVolumeSignal product={product} compact />
                 <small>{product.moq} · 非最终成交报价</small>
-                <div>
+                <div className="catalog-card-actions">
                   <button
-                    className="favorite-button"
+                    className="outline-button"
                     type="button"
-                    aria-label={`收藏 ${product.cnName}`}
                     onClick={() => {
                       setSelectedId(product.id);
+                      setView("detail");
                     }}
                   >
-                    ♡
+                    查看详情
                   </button>
                   <button
                     className="primary-button full"
@@ -981,7 +1002,7 @@ function Catalog({
                       setView(isBuyer ? "intention" : "detail");
                     }}
                   >
-                    {isBuyer ? "加入采购" : "维护资料"}
+                    {isBuyer ? "提交意向" : "维护资料"}
                   </button>
                 </div>
               </article>
@@ -1035,12 +1056,12 @@ function ProcurementProgress({
 }) {
   const isBuyer = portal === "buyer";
   const rows = [
-    ["曼纳原味榛子威化 75g", "SPAR20240524001", "德国奥地利供应商", "清关中", 83, "2024-06-05", "进行中"],
-    ["哈瑞宝金熊软糖 175g", "SPAR20240523002", "HARIBO GmbH & Co. KG", "运输中", 62, "2024-06-08", "进行中"],
-    ["沃克斯黄油酥饼条 250g", "SPAR20240520003", "Burton's Biscuits Co.", "已到港", 90, "2024-06-03", "异常"],
-    ["瑞特斯波德巧克力 100g", "SPAR20240518004", "Ritter Sport GmbH", "已完成", 100, "2024-05-25", "已完成"],
-    ["雅各布斯速溶咖啡 200g", "SPAR20240516005", "JACOBS Douwe Egberts", "采购中", 35, "2024-06-12", "进行中"],
-    ["费列罗榛果威化巧克力 48粒", "SPAR20240514006", "Ferrero S.p.A.", "需求确认", 15, "2024-06-15", "进行中"],
+    ["曼纳原味榛子威化 75g", "SPAR20260524001", "德国奥地利供应商", "清关中", 83, "2026-06-05", "进行中"],
+    ["哈瑞宝金熊软糖 175g", "SPAR20260523002", "HARIBO GmbH & Co. KG", "运输中", 62, "2026-06-08", "进行中"],
+    ["Walker's 沃克斯黄油酥饼 250g", "SPAR20260520003", "Walker's Shortbread Ltd.", "已到港", 90, "2026-06-03", "异常"],
+    ["瑞特斯波德巧克力 100g", "SPAR20260518004", "Ritter Sport GmbH", "已完成", 100, "2026-05-25", "已完成"],
+    ["Lavazza 拉瓦萨咖啡粉 250g", "SPAR20260516005", "Luigi Lavazza S.p.A.", "采购中", 35, "2026-06-12", "进行中"],
+    ["费列罗榛果威化巧克力 48粒", "SPAR20260514006", "Ferrero S.p.A.", "需求确认", 15, "2026-06-15", "进行中"],
   ];
 
   return (
@@ -1110,11 +1131,11 @@ function ProcurementProgress({
           <section className="panel timeline-card">
             <h2>项目时间线</h2>
             {[
-              ["2024-05-24 09:30", "需求已确认", "采购需求已提交并确认"],
-              ["2024-05-24 14:20", "采购已下单", "采购订单已发送至供应商"],
-              ["2024-05-27 16:45", "货物已发运", "供应商已发货，预计 2024-06-02 到港"],
-              ["2024-06-02 10:15", "货物已到港", "货物已到达目的港，等待清关"],
-              ["2024-06-03 11:30", "清关中", "海关清关进行中"],
+              ["2026-05-24 09:30", "需求已确认", "采购需求已提交并确认"],
+              ["2026-05-24 14:20", "采购已下单", "采购订单已发送至供应商"],
+              ["2026-05-27 16:45", "货物已发运", "供应商已发货，预计 2026-06-02 到港"],
+              ["2026-06-02 10:15", "货物已到港", "货物已到达目的港，等待清关"],
+              ["2026-06-03 11:30", "清关中", "海关清关进行中"],
             ].map((item) => (
               <div className="timeline-item" key={item[0]}>
                 <time>{item[0]}</time>
@@ -1156,17 +1177,26 @@ function ProcurementRow({
   );
 }
 
-function IntentionAdminPage({ setView, setSelectedId }: { setView: (view: View) => void; setSelectedId: (id: string) => void }) {
+function IntentionAdminPage({
+  operatorRole,
+  setView,
+  setSelectedId,
+}: {
+  operatorRole: OperatorRole;
+  setView: (view: View) => void;
+  setSelectedId: (id: string) => void;
+}) {
+  const isDirector = operatorRole === "director";
   const rows = [
     ["广东嘉荣集团", "Manner 曼纳威化饼干", "120 箱", "山东区域仓", "2026 年 Q4", "待核价"],
     ["家家悦集团", "HARIBO 哈瑞宝金熊软糖", "260 箱", "山东区域仓", "2026 年 Q4", "待确认授权"],
-    ["湖南佳惠百货", "JACOB'S 沃克斯黄油酥饼", "80 箱", "华中区域仓", "2026 年 Q4", "待补资料"],
+    ["湖南佳惠百货", "Walker's 沃克斯黄油酥饼", "80 箱", "华中区域仓", "2026 年 Q4", "待补资料"],
     ["广东嘉荣集团", "Ritter Sport 瑞特斯波德牛奶巧克力", "160 箱", "华南区域仓", "2026 年 Q4", "待二次确认"],
   ];
 
   return (
     <>
-      <PageTitle title="意向审核" subtitle="平台运营后台用于审核企业意向、补齐资料并发起二次确认" />
+      <PageTitle title="意向审核" subtitle={isDirector ? "商品总监审批成团二次确认，经理账号不能代替审批" : "商品运营经理汇总企业意向、补齐资料并提交总监审批"} />
       <section className="metric-strip client-metrics">
         <MetricCard icon="◇" label="待审核意向" value="37" hint="来自 12 家区域零售企业" />
         <MetricCard icon="▤" label="待核价" value="9" hint="需确认供应商报价口径" />
@@ -1179,7 +1209,15 @@ function IntentionAdminPage({ setView, setSelectedId }: { setView: (view: View) 
         <button type="button">商品国家⌄</button>
         <button type="button">到货窗口⌄</button>
         <button type="button">重置</button>
-        <button className="primary-button" type="button">发起二次确认</button>
+        <button className="primary-button" type="button">{isDirector ? "批准发起二次确认" : "提交总监审批"}</button>
+      </section>
+      <section className="approval-gate-strip">
+        {["达到20尺柜", "最终报价版本", "到货窗口", "合同条款", "授权与标签"].map((item, index) => (
+          <article key={item} className={index < 3 ? "done" : ""}>
+            <b>{index < 3 ? "✓" : "!"}</b>
+            <span>{item}</span>
+          </article>
+        ))}
       </section>
       <section className="procurement-layout">
         <article className="panel intention-admin-table">
@@ -1199,7 +1237,7 @@ function IntentionAdminPage({ setView, setSelectedId }: { setView: (view: View) 
                         setView("detail");
                       }}
                     >
-                      打开
+                      {isDirector ? "审批" : "查看"}
                     </button>
                   ) : null}
                 </div>
@@ -1307,7 +1345,7 @@ function FileCenterPage({
                 <div className="file-actions">
                   {isBuyer ? (
                     <>
-                      <button className="outline-button" type="button" disabled={file[2] === "待生成" || file[2] === "待上传"}>
+                      <button className="outline-button" type="button" disabled={!canDownloadStatus(file[2])}>
                         下载
                       </button>
                       <button className="soft-button" type="button">
@@ -1386,10 +1424,11 @@ function FileCenterPage({
   );
 }
 
-function AiReviewPage({ setView }: { setView: (view: View) => void }) {
+function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; setView: (view: View) => void }) {
+  const isDirector = operatorRole === "director";
   return (
     <>
-      <PageTitle title="AI 初审队列" subtitle="上传文件后先识别类型、抽取字段、检查缺失和一致性，再进入人工复核" />
+      <PageTitle title="AI 初审队列" subtitle={isDirector ? "总监复核 AI 初审结果并决定通过、退回或驳回" : "经理处理 AI 初审提示，补资料后提交总监复核"} />
       <section className="metric-strip ai-metrics">
         <MetricCard icon="◎" label="待初审" value="24" hint="近 24 小时新增 9 份" />
         <MetricCard icon="!" label="需补正" value="7" hint="授权、报价、装箱资料问题较多" />
@@ -1407,7 +1446,7 @@ function AiReviewPage({ setView }: { setView: (view: View) => void }) {
             <div className="file-tools">
               <button className="outline-button" type="button">风险等级⌄</button>
               <button className="outline-button" type="button">责任岗位⌄</button>
-              <button className="primary-button" type="button">批量分派</button>
+              <button className="primary-button" type="button">{isDirector ? "批量审批" : "批量提交复核"}</button>
             </div>
           </div>
           <div className="review-list">
@@ -1416,6 +1455,7 @@ function AiReviewPage({ setView }: { setView: (view: View) => void }) {
                 <div className="review-head">
                   <div>
                     <h3>{item.file}</h3>
+                    <p>{item.product} · {item.businessNo}</p>
                     <p>{item.stage} · {item.owner}</p>
                   </div>
                   <div className="review-badges">
@@ -1434,8 +1474,17 @@ function AiReviewPage({ setView }: { setView: (view: View) => void }) {
                 </div>
                 <div className="review-actions">
                   <button className="outline-button" type="button">查看原件</button>
-                  <button className="outline-button" type="button">退回补正</button>
-                  <button className="primary-button" type="button">确认入库</button>
+                  {isDirector ? (
+                    <>
+                      <button className="outline-button" type="button">退回补正</button>
+                      <button className="primary-button" type="button">确认入库</button>
+                    </>
+                  ) : (
+                    <>
+                      <button className="outline-button" type="button">补充资料</button>
+                      <button className="primary-button" type="button">提交总监复核</button>
+                    </>
+                  )}
                 </div>
               </article>
             ))}
@@ -1470,24 +1519,27 @@ function AiReviewPage({ setView }: { setView: (view: View) => void }) {
 }
 
 function ProgressBoard({
+  portal,
   setView,
   setSelectedId,
 }: {
+  portal: Portal;
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
   const ordered = [...products].sort((a, b) => progressOf(b) - progressOf(a));
+  const isBuyer = portal === "buyer";
 
   return (
     <>
-      <PageTitle title="单品 20 尺柜进度看板" subtitle="企业端不展示其他参与企业，仅展示总进度" />
+      <PageTitle title="单品 20 尺柜进度看板" subtitle={isBuyer ? "企业端不展示其他参与企业，仅展示总进度" : "后台查看单品成团总量、二次确认条件和运营跟进重点"} />
       <section className="panel progress-panel">
         <div className="progress-title">
           <div>
             <span>总进度展示</span>
-            <h2>企业端不展示其他参与企业</h2>
+            <h2>{isBuyer ? "企业端不展示其他参与企业" : "后台按单品汇总成团进度"}</h2>
           </div>
-          <span className="privacy-badge">♢ 隐私保护</span>
+          <span className="privacy-badge">{isBuyer ? "♢ 隐私保护" : "◇ 内部汇总"}</span>
         </div>
         <div className="progress-list">
           {ordered.map((product) => {
@@ -1535,7 +1587,7 @@ function ReportsPage() {
     <>
       <PageTitle title="数据报表" subtitle="多维度数据分析，助力业务决策" />
       <section className="report-filters">
-        <button type="button">时间范围<br /><strong>2024-05-01 ~ 2024-05-31</strong></button>
+        <button type="button">时间范围<br /><strong>2026-05-01 ~ 2026-05-31</strong></button>
         <button type="button">对比维度<br /><strong>环比⌄</strong></button>
         <button type="button">商品类别<br /><strong>全部类别⌄</strong></button>
         <button type="button">品牌<br /><strong>全部品牌⌄</strong></button>
@@ -1569,12 +1621,12 @@ function ReportsPage() {
             ))}
           </ul>
         </article>
-        <RankPanel title="国家/地区采购金额 TOP5" items={["德国 ¥ 856,200.50", "英国 ¥ 647,800.30", "法国 ¥ 398,600.20", "日本 ¥ 296,400.10", "美国 ¥ 251,200.40"]} />
-        <RankPanel title="品牌采购金额 TOP5" items={["HARIBO ¥ 245,600.30", "JACOBS ¥ 198,700.20", "Manner ¥ 156,400.10", "Ritter Sport ¥ 132,600.80", "Walker's ¥ 118,300.50"]} />
+        <RankPanel title="国家/地区采购金额" items={["德国 ¥ 856,200.50", "英国 ¥ 647,800.30", "奥地利 ¥ 398,600.20", "意大利 ¥ 296,400.10"]} />
+        <RankPanel title="品牌采购金额 TOP5" items={["HARIBO ¥ 245,600.30", "Walker's ¥ 198,700.20", "Manner ¥ 156,400.10", "Ritter Sport ¥ 132,600.80", "Lavazza ¥ 118,300.50"]} />
         <article className="panel report-table">
           <h2>采购概览</h2>
           <div className="data-table four">
-            <div>指标</div><div>本期（2024-05）</div><div>上期（2024-04）</div><div>环比变化</div>
+            <div>指标</div><div>本期（2026-05）</div><div>上期（2026-04）</div><div>环比变化</div>
             {[
               ["采购金额（元）", "2,450,890.60", "2,067,441.80", "↑ 18.6%"],
               ["订单数（单）", "312", "277", "↑ 12.4%"],
@@ -1615,13 +1667,13 @@ function RankPanel({ title, items }: { title: string; items: string[] }) {
 
 function ClientsPage() {
   const clients = [
-    ["广东嘉荣超市有限公司", "华南区域头部超市", "合作中", "★★★★★", "采购负责人", "客户经理已登记", "¥ 5,680,000", "2024-05-20"],
-    ["家家悦集团股份有限公司", "山东区域连锁超市", "合作中", "★★★★★", "进口食品负责人", "客户经理已登记", "¥ 4,320,000", "2024-05-18"],
-    ["湖南佳惠百货有限责任公司", "湖南区域商贸零售", "合作中", "★★★★☆", "休食采购负责人", "客户经理已登记", "¥ 3,980,000", "2024-05-17"],
-    ["福建冠超市商业有限公司", "福建区域连锁超市", "合作中", "★★★★☆", "采购中心负责人", "客户经理已登记", "¥ 3,650,000", "2024-05-16"],
-    ["安徽乐城投资股份有限公司", "安徽区域精品超市", "潜在客户", "★★★☆☆", "商品部负责人", "待补充", "¥ 1,280,000", "2024-05-10"],
-    ["四川舞东风超市连锁股份有限公司", "西南区域社区零售", "跟进中", "★★★☆☆", "采购经理", "待补充", "¥ 980,000", "2024-04-28"],
-    ["重庆重客隆超市连锁有限责任公司", "重庆区域连锁超市", "待评估", "★★☆☆☆", "商品经理", "待补充", "¥ 670,000", "2024-04-15"],
+    ["广东嘉荣超市有限公司", "华南区域头部超市", "合作中", "★★★★★", "采购负责人", "客户经理已登记", "¥ 5,680,000", "2026-05-20"],
+    ["家家悦集团股份有限公司", "山东区域连锁超市", "合作中", "★★★★★", "进口食品负责人", "客户经理已登记", "¥ 4,320,000", "2026-05-18"],
+    ["湖南佳惠百货有限责任公司", "湖南区域商贸零售", "合作中", "★★★★☆", "休食采购负责人", "客户经理已登记", "¥ 3,980,000", "2026-05-17"],
+    ["福建冠超市商业有限公司", "福建区域连锁超市", "合作中", "★★★★☆", "采购中心负责人", "客户经理已登记", "¥ 3,650,000", "2026-05-16"],
+    ["安徽乐城投资股份有限公司", "安徽区域精品超市", "潜在客户", "★★★☆☆", "商品部负责人", "待补充", "¥ 1,280,000", "2026-05-10"],
+    ["四川舞东风超市连锁股份有限公司", "西南区域社区零售", "跟进中", "★★★☆☆", "采购经理", "待补充", "¥ 980,000", "2026-04-28"],
+    ["重庆重客隆超市连锁有限责任公司", "重庆区域连锁超市", "待评估", "★★☆☆☆", "商品经理", "待补充", "¥ 670,000", "2026-04-15"],
   ];
   return (
     <>
@@ -1667,11 +1719,11 @@ function ClientsPage() {
 function MessagesPage() {
   const categories = [["全部消息", "12"], ["系统公告", "3"], ["订单通知", "4"], ["成团进度", "2"], ["费用通知", "1"], ["服务通知", "1"], ["平台活动", "1"], ["其他消息", "0"]];
   const messages = [
-    ["系统升级维护通知", "SPAR 联采平台将于 2024年5月25日 22:00 - 5月26日 02:00 进行系统升级维护，期间平台部分功能将受影响...", "系统公告", "10:30", "未读"],
-    ["订单支付成功通知", "您的订单 PO-20240524001 已支付成功，金额 ¥78,450.00 元。感谢您的采购！", "订单通知", "昨天 16:45", "未读"],
+    ["系统升级维护通知", "SPAR 联采平台将于 2026年5月25日 22:00 - 5月26日 02:00 进行系统升级维护，期间平台部分功能将受影响...", "系统公告", "10:30", "未读"],
+    ["订单支付成功通知", "您的订单 PO-20260524001 已支付成功，金额 ¥78,450.00 元。感谢您的采购！", "订单通知", "昨天 16:45", "未读"],
     ["成团进度更新", "您参与的团组「进口饼干零食专场」成团率已更新至 83%，距离成团目标还差 17%。", "成团进度", "昨天 11:20", "未读"],
-    ["费用结算通知", "您的 2024年5月 结算单已生成，金额 ¥12,680.00 元，请及时查看并安排付款。", "费用通知", "5月23日 09:15", "已读"],
-    ["服务商响应通知", "您的售后服务请求（工单号：SR-20240522001）已有新回复，请及时查看。", "服务通知", "5月22日 14:30", "已读"],
+    ["费用结算通知", "您的 2026年5月 结算单已生成，金额 ¥12,680.00 元，请及时查看并安排付款。", "费用通知", "5月23日 09:15", "已读"],
+    ["服务商响应通知", "您的售后服务请求（工单号：SR-20260522001）已有新回复，请及时查看。", "服务通知", "5月22日 14:30", "已读"],
     ["618 进口好物节活动预告", "SPAR 联采 618 进口好物节即将开启，多重优惠等你来享！", "平台活动", "5月21日 10:00", "已读"],
   ];
   return (
@@ -1799,10 +1851,21 @@ function DetailPage({
             <Spec label="过去12个月总采购量" value={`${product.last12MonthBoxes.toLocaleString()} 箱`} />
             <Spec label="历史采购口径" value="已完成采购箱数" />
           </div>
+          <section className="decision-info-panel">
+            <h2>进口采购关键资料</h2>
+            <div className="decision-info-grid">
+              {decisionInfoRows(product).map((item) => (
+                <div key={item[0]}>
+                  <span>{item[0]}</span>
+                  <strong>{item[1]}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
           <CostDisclosure />
+          <div className="card-actions detail-actions"><button className="outline-button" type="button" onClick={() => setView("catalog")}>返回{isBuyer ? "目录" : "资料库"}</button><button className="primary-button" type="button" onClick={() => setView(isBuyer ? "intention" : "intentionAdmin")}>{isBuyer ? "提交采购意向" : "查看意向审核"}</button></div>
           <ProductFlowFilePanel product={product} isBuyer={isBuyer} operatorRole={operatorRole} setView={setView} />
           <div className="detail-progress"><div><strong>{pct}%</strong><span>当前成团进度</span></div><ProgressBar value={pct} /></div>
-          <div className="card-actions detail-actions"><button className="outline-button" type="button" onClick={() => setView("catalog")}>返回{isBuyer ? "目录" : "资料库"}</button><button className="primary-button" type="button" onClick={() => setView(isBuyer ? "intention" : "intentionAdmin")}>{isBuyer ? "提交采购意向" : "查看意向审核"}</button></div>
         </div>
       </section>
     </>
@@ -1899,6 +1962,9 @@ function ProductFlowFilePanel({
                   <div className="stage-upload-slot">
                     <UploadDropzone label={`${stage.stage}文件上传`} />
                     <div className="upload-fields">
+                      <button type="button">流程节点：{index + 1}. {stage.stage}</button>
+                      <button type="button">业务单号：{stage.stage === "企业意向与成团" ? "GROUP2026-Q4-001" : stage.stage === "二次确认" ? "CONFIRM2026-Q4-001" : "SKU-" + product.id.toUpperCase()}</button>
+                      <button type="button">关联单据：{stage.stage.includes("报关") ? "CUSTOMS2026-001" : stage.stage.includes("运输") ? "柜号待定" : "当前商品"}</button>
                       <button type="button">文件类型已限定：{stage.files[0]} 等⌄</button>
                       <button type="button">绑定商品：{product.cnName}</button>
                       <button type="button">责任岗位：{stage.owner}</button>
@@ -1921,7 +1987,7 @@ function ProductFlowFilePanel({
                 ) : null}
                 {isBuyer ? (
                   <div className="stage-buyer-actions">
-                    <button className="outline-button" type="button" disabled={stage.buyerStatus === "待生成" || stage.buyerStatus === "后台处理"}>
+                    <button className="outline-button" type="button" disabled={!canDownloadStatus(stage.buyerStatus)}>
                       下载阶段文件
                     </button>
                     <button className="soft-button" type="button">
@@ -2045,15 +2111,15 @@ export default function Home() {
   }
 
   return (
-    <AppShell activeView={view} setView={setView} portal={portal} operatorRole={operatorRole} setPortal={setPortal} onLogout={logout}>
+    <AppShell activeView={view} setView={setView} portal={portal} operatorRole={operatorRole} onLogout={logout}>
       {view === "dashboard" ? <Dashboard portal={portal} operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "catalog" ? <Catalog portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "documents" ? <FileCenterPage portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "aiReview" ? <AiReviewPage setView={setView} /> : null}
+      {view === "aiReview" ? <AiReviewPage operatorRole={operatorRole} setView={setView} /> : null}
       {view === "procurement" ? <ProcurementProgress portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "progress" ? <ProgressBoard setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "progress" ? <ProgressBoard portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} setView={setView} /> : null}
-      {view === "intentionAdmin" ? <IntentionAdminPage setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "intentionAdmin" ? <IntentionAdminPage operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "detail" ? <DetailPage product={selectedProduct} portal={portal} operatorRole={operatorRole} setView={setView} /> : null}
       {view === "clients" ? <ClientsPage /> : null}
       {view === "reports" ? <ReportsPage /> : null}
