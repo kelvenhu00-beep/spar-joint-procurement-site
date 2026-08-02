@@ -362,6 +362,99 @@ const workflowStages = [
   ["业务推进", "二次确认、采购、报关、入库、配送、结算"],
 ];
 
+const productFlowFiles = [
+  {
+    stage: "商品建档",
+    timing: "上架前",
+    owner: "商品开发 / 关务",
+    files: ["商品图片", "规格书", "外箱图", "中文标签资料", "授权文件"],
+    status: "已归档",
+    buyerStatus: "可下载",
+    note: "决定企业是否愿意进一步看这个商品。",
+  },
+  {
+    stage: "报价与成本测算",
+    timing: "展示预估到仓成本前",
+    owner: "价格核算 / 物流 / 关务",
+    files: ["供应商报价单", "运费报价", "税费测算依据", "成本拆解表"],
+    status: "当前可上传",
+    buyerStatus: "状态可见",
+    note: "没有成本文件，不允许展示预估到仓成本。",
+  },
+  {
+    stage: "企业意向与成团",
+    timing: "企业提交意向后",
+    owner: "订单运营 / 企业采购",
+    files: ["采购意向回执", "企业补充说明", "成团汇总表"],
+    status: "待触发",
+    buyerStatus: "可下载",
+    note: "只绑定当前商品和当前企业意向，不展示其他企业明细。",
+  },
+  {
+    stage: "二次确认",
+    timing: "达到 20 尺柜后",
+    owner: "订单运营 / 法务 / 财务",
+    files: ["最终报价确认单", "交期确认单", "合同条款清单", "企业确认回执"],
+    status: "待触发",
+    buyerStatus: "待生成",
+    note: "意向转正式订单的分界点。",
+  },
+  {
+    stage: "海外采购",
+    timing: "企业正式确认后",
+    owner: "供应商对接 / 财务",
+    files: ["海外 PO", "PI", "供应商订单确认", "对外付款证明"],
+    status: "未到节点",
+    buyerStatus: "后台处理",
+    note: "后台可见，企业只看采购状态。",
+  },
+  {
+    stage: "国际运输",
+    timing: "订舱和装柜时",
+    owner: "物流履约",
+    files: ["Booking", "VGM", "装柜照片", "封条照片", "提单"],
+    status: "未到节点",
+    buyerStatus: "状态可见",
+    note: "运输文件必须绑定柜号、船期和提单号。",
+  },
+  {
+    stage: "报关清关",
+    timing: "到港前后",
+    owner: "关务 / 报关行 / 财务",
+    files: ["Commercial Invoice", "Packing List", "合同", "原产地证", "税单", "放行通知"],
+    status: "未到节点",
+    buyerStatus: "状态可见",
+    note: "报关资料不在总入口随便上传，必须绑定报关批次。",
+  },
+  {
+    stage: "国内入库与分拣",
+    timing: "放行提货后",
+    owner: "仓库 / 物流",
+    files: ["入库单", "验收单", "破损短少照片", "分货清单"],
+    status: "未到节点",
+    buyerStatus: "待生成",
+    note: "分货清单按企业订单生成。",
+  },
+  {
+    stage: "二段配送与签收",
+    timing: "分拣出库后",
+    owner: "物流 / 企业",
+    files: ["出库单", "二段配送单", "签收单", "回单照片"],
+    status: "未到节点",
+    buyerStatus: "待生成",
+    note: "企业端只下载自身配送和签收文件。",
+  },
+  {
+    stage: "对账结算",
+    timing: "企业签收后",
+    owner: "财务",
+    files: ["对账单", "平台服务费账单", "发票", "差额调整单"],
+    status: "未到节点",
+    buyerStatus: "待生成",
+    note: "费用归集完成后才能开放对账。",
+  },
+];
+
 function progressOf(product: Product) {
   return Math.round((product.currentBoxes / product.targetBoxes) * 100);
 }
@@ -1069,18 +1162,26 @@ function IntentionAdminPage({ setView, setSelectedId }: { setView: (view: View) 
   );
 }
 
-function FileCenterPage({ portal, setView }: { portal: Portal; setView: (view: View) => void }) {
+function FileCenterPage({
+  portal,
+  setView,
+  setSelectedId,
+}: {
+  portal: Portal;
+  setView: (view: View) => void;
+  setSelectedId: (id: string) => void;
+}) {
   const isBuyer = portal === "buyer";
   const files = isBuyer ? buyerFileItems : operatorFileItems;
   const metrics = isBuyer
     ? [
         ["可下载文件", "18", "商品资料、意向、合同、付款、签收"],
         ["待确认文件", "3", "二次确认和最终报价"],
-        ["待上传凭证", "2", "付款证明、收货异常照片"],
+        ["待处理节点", "2", "付款证明、收货异常照片"],
         ["历史归档", "42", "按订单和商品归档"],
       ]
     : [
-        ["待上传文件", "31", "报关、物流、财务节点"],
+        ["缺失节点", "31", "分散在商品流程中处理"],
         ["AI 初审中", "24", "等待字段抽取和一致性检查"],
         ["待人工复核", "16", "商品、关务、财务、法务分工"],
         ["已归档文件", "128", "按商品、订单、柜号归档"],
@@ -1090,7 +1191,7 @@ function FileCenterPage({ portal, setView }: { portal: Portal; setView: (view: V
     <>
       <PageTitle
         title={isBuyer ? "合同与单据" : "资料文件中心"}
-        subtitle={isBuyer ? "下载采购决策、合同、付款、交付和结算文件" : "上传、初审、复核和归档商品、采购、报关、物流、财务文件"}
+        subtitle={isBuyer ? "按商品和采购阶段下载资料、合同、付款、交付和结算文件" : "这里只做总览和缺失预警；上传必须进入具体商品页，并绑定当前流程节点"}
       />
 
       <section className="metric-strip document-metrics">
@@ -1113,24 +1214,26 @@ function FileCenterPage({ portal, setView }: { portal: Portal; setView: (view: V
         <article className="panel document-table-panel">
           <div className="panel-head">
             <div>
-              <h2>{isBuyer ? "我的文件" : "业务文件清单"}</h2>
-              <p>{isBuyer ? "只展示本企业可见文件" : "按业务节点显示上传、初审、复核和归档状态"}</p>
+              <h2>{isBuyer ? "我的商品文件" : "按商品处理文件"}</h2>
+              <p>{isBuyer ? "文件按照商品和采购阶段归档" : "不能从总入口批量上传；每份文件必须绑定商品、阶段和责任岗位"}</p>
             </div>
             <div className="file-tools">
-              <input placeholder="搜索文件、商品、订单号" />
+              <input placeholder="搜索商品、阶段、订单号" />
               <button className="outline-button" type="button">筛选</button>
-              {isBuyer ? null : <button className="primary-button" type="button">批量上传</button>}
             </div>
           </div>
           <div className="file-list">
-            {files.map((file) => (
+            {(isBuyer ? files : products.slice(0, 6).map((product, index) => {
+              const stage = productFlowFiles[index % productFlowFiles.length];
+              return [stage.stage, product.cnName, stage.status, stage.files.join("、")];
+            })).map((file, index) => (
               <article className="file-row" key={`${file[0]}-${file[1]}`}>
                 <div className="file-main">
                   <span className="file-type-icon">▦</span>
                   <div>
-                    <h3>{file[0]}</h3>
+                    <h3>{isBuyer ? file[0] : `${file[1]} · ${file[0]}`}</h3>
                     <p>{file[1]}</p>
-                    <small>{file[3]}</small>
+                    <small>{isBuyer ? file[3] : `该节点文件：${file[3]}`}</small>
                   </div>
                 </div>
                 <StatusPill status={file[2]} />
@@ -1146,11 +1249,25 @@ function FileCenterPage({ portal, setView }: { portal: Portal; setView: (view: V
                     </>
                   ) : (
                     <>
-                      <button className="outline-button" type="button">
-                        上传
+                      <button
+                        className="outline-button"
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(products[index % products.length].id);
+                          setView("detail");
+                        }}
+                      >
+                        打开商品页
                       </button>
-                      <button className="primary-button" type="button" onClick={() => setView(file[2] === "AI初审中" || file[2] === "需补正" ? "aiReview" : "documents")}>
-                        {file[2] === "已归档" ? "查看" : "处理"}
+                      <button
+                        className="primary-button"
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(products[index % products.length].id);
+                          setView(file[2] === "AI初审中" || file[2] === "需补正" ? "aiReview" : "detail");
+                        }}
+                      >
+                        {file[2] === "已归档" ? "查看归档" : "按节点处理"}
                       </button>
                     </>
                   )}
@@ -1161,16 +1278,23 @@ function FileCenterPage({ portal, setView }: { portal: Portal; setView: (view: V
         </article>
 
         <aside className="document-side">
-          <section className="panel upload-panel">
-            <h2>{isBuyer ? "上传窗口" : "后台上传窗口"}</h2>
-            <UploadDropzone label={isBuyer ? "付款证明 / 收货异常照片" : "规格书 / 报价 / 报关 / 物流 / 财务文件"} />
-            <div className="upload-fields">
-              <button type="button">文件类型⌄</button>
-              <button type="button">绑定订单⌄</button>
-              <button type="button">可见范围⌄</button>
+          <section className="panel flow-rule-card">
+            <h2>{isBuyer ? "文件查看规则" : "上传规则"}</h2>
+            <p>{isBuyer ? "企业端只下载当前企业、当前商品、当前订单可见的文件。" : "后台上传入口放在商品页的流程节点内，总览页不允许绕过流程上传。"}</p>
+            <div>
+              {["绑定商品", "绑定阶段", "绑定责任人", "AI 初审", "人工复核"].map((item) => (
+                <span key={item}>{item}</span>
+              ))}
             </div>
-            <button className="primary-button full" type="button">
-              {isBuyer ? "提交资料" : "上传并进入 AI 初审"}
+            <button
+              className="primary-button full"
+              type="button"
+              onClick={() => {
+                setSelectedId(products[0].id);
+                setView("detail");
+              }}
+            >
+              {isBuyer ? "打开商品文件" : "进入商品页上传"}
             </button>
           </section>
 
@@ -1252,10 +1376,17 @@ function AiReviewPage({ setView }: { setView: (view: View) => void }) {
         </article>
 
         <aside className="ai-side">
-          <section className="panel upload-panel">
-            <h2>上传新文件</h2>
-            <UploadDropzone label="拖入文件或点击上传" />
-            <button className="primary-button full" type="button">上传并初审</button>
+          <section className="panel flow-rule-card">
+            <h2>队列来源</h2>
+            <p>AI 初审队列只接收从商品页流程节点上传的文件。每份文件已经带有商品、阶段、责任岗位和业务单号。</p>
+            <div>
+              {["商品页上传", "节点锁定", "字段抽取", "人工复核"].map((item) => (
+                <span key={item}>{item}</span>
+              ))}
+            </div>
+            <button className="primary-button full" type="button" onClick={() => setView("catalog")}>
+              选择商品处理
+            </button>
           </section>
 
           <section className="panel ai-rule-panel">
@@ -1590,31 +1721,7 @@ function DetailPage({ product, portal, setView }: { product: Product; portal: Po
             <Spec label="当前总意向" value={`${product.currentBoxes.toLocaleString()} 箱`} />
           </div>
           <CostDisclosure />
-          <section className="detail-documents">
-            <div className="panel-head compact">
-              <h2>{isBuyer ? "商品资料与下载" : "资料维护与初审"}</h2>
-              <p>{isBuyer ? "采购决策需要的核心资料状态" : "后台上传资料后进入 AI 初审和人工复核"}</p>
-            </div>
-            <div className="detail-doc-grid">
-              {(isBuyer
-                ? [["商品资料包", "已审核"], ["预估到仓成本说明", "可下载"], ["中文标签状态", "待人工复核"], ["授权状态", "待确认"]]
-                : [["规格书", "AI初审中"], ["商品图片包", "已归档"], ["中文标签资料", "待人工复核"], ["品牌授权", "需补正"]]
-              ).map((item) => (
-                <div key={item[0]}>
-                  <span>{item[0]}</span>
-                  <StatusPill status={item[1]} />
-                </div>
-              ))}
-            </div>
-            <div className="detail-doc-actions">
-              <button className="outline-button" type="button" onClick={() => setView("documents")}>
-                {isBuyer ? "查看文件" : "进入文件中心"}
-              </button>
-              <button className="primary-button" type="button" onClick={() => setView(isBuyer ? "intention" : "aiReview")}>
-                {isBuyer ? "提交意向" : "处理初审"}
-              </button>
-            </div>
-          </section>
+          <ProductFlowFilePanel product={product} isBuyer={isBuyer} setView={setView} />
           <div className="detail-progress"><div><strong>{pct}%</strong><span>当前成团进度</span></div><ProgressBar value={pct} /></div>
           <div className="card-actions detail-actions"><button className="outline-button" type="button" onClick={() => setView("catalog")}>返回{isBuyer ? "目录" : "资料库"}</button><button className="primary-button" type="button" onClick={() => setView(isBuyer ? "intention" : "intentionAdmin")}>{isBuyer ? "提交采购意向" : "查看意向审核"}</button></div>
         </div>
@@ -1623,8 +1730,91 @@ function DetailPage({ product, portal, setView }: { product: Product; portal: Po
   );
 }
 
+function ProductFlowFilePanel({
+  product,
+  isBuyer,
+  setView,
+}: {
+  product: Product;
+  isBuyer: boolean;
+  setView: (view: View) => void;
+}) {
+  return (
+    <section className="product-flow-panel">
+      <div className="panel-head">
+        <div>
+          <h2>{isBuyer ? "单品流程文件" : "单品流程文件上传"}</h2>
+          <p>{isBuyer ? "按当前商品和采购阶段查看可下载资料" : "每个文件必须在对应阶段上传，系统自动绑定当前商品"}</p>
+        </div>
+        <button className="outline-button" type="button" onClick={() => setView(isBuyer ? "documents" : "aiReview")}>
+          {isBuyer ? "查看我的文件" : "查看 AI 初审"}
+        </button>
+      </div>
+
+      <div className="flow-product-lock">
+        <ProductImage product={product} size="mini" />
+        <div>
+          <strong>{product.cnName}</strong>
+          <span>{product.brand} · {product.country} · {product.spec}</span>
+        </div>
+        <StatusPill status={isBuyer ? "按商品归档" : "上传已锁定商品"} />
+      </div>
+
+      <div className="stage-file-list">
+        {productFlowFiles.map((stage, index) => {
+          const stageStatus = isBuyer ? stage.buyerStatus : stage.status;
+          const canUpload = !isBuyer && stage.status === "当前可上传";
+          return (
+            <article className={`stage-file-card ${canUpload ? "active" : ""}`} key={stage.stage}>
+              <div className="stage-index">{index + 1}</div>
+              <div className="stage-body">
+                <div className="stage-title-line">
+                  <div>
+                    <h3>{stage.stage}</h3>
+                    <p>{stage.timing} · {stage.owner}</p>
+                  </div>
+                  <StatusPill status={stageStatus} />
+                </div>
+                <div className="stage-file-tags">
+                  {stage.files.map((file) => (
+                    <span key={file}>{file}</span>
+                  ))}
+                </div>
+                <p className="stage-note">{stage.note}</p>
+                {canUpload ? (
+                  <div className="stage-upload-slot">
+                    <UploadDropzone label={`${stage.stage}文件上传`} />
+                    <div className="upload-fields">
+                      <button type="button">文件类型已限定：{stage.files[0]} 等⌄</button>
+                      <button type="button">绑定商品：{product.cnName}</button>
+                      <button type="button">责任岗位：{stage.owner}</button>
+                    </div>
+                    <button className="primary-button full" type="button" onClick={() => setView("aiReview")}>
+                      上传后进入 AI 初审
+                    </button>
+                  </div>
+                ) : null}
+                {isBuyer ? (
+                  <div className="stage-buyer-actions">
+                    <button className="outline-button" type="button" disabled={stage.buyerStatus === "待生成" || stage.buyerStatus === "后台处理"}>
+                      下载阶段文件
+                    </button>
+                    <button className="soft-button" type="button">
+                      查看状态
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function StatusPill({ status }: { status: string }) {
-  const normalized = status.includes("补") || status.includes("高") || status.includes("缺") ? "danger" : status.includes("待") || status.includes("AI") ? "pending" : status.includes("归档") || status.includes("审核") || status.includes("下载") ? "done" : "";
+  const normalized = status.includes("补") || status.includes("高") || status.includes("缺") ? "danger" : status.includes("待") || status.includes("AI") || status.includes("未到") ? "pending" : status.includes("当前") ? "active" : status.includes("归档") || status.includes("审核") || status.includes("下载") || status.includes("锁定") ? "done" : "";
   return <span className={`status-pill ${normalized}`}>{status}</span>;
 }
 
@@ -1719,7 +1909,7 @@ export default function Home() {
     <AppShell activeView={view} setView={setView} portal={portal} setPortal={setPortal} onLogout={logout}>
       {view === "dashboard" ? <Dashboard portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "catalog" ? <Catalog portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "documents" ? <FileCenterPage portal={portal} setView={setView} /> : null}
+      {view === "documents" ? <FileCenterPage portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "aiReview" ? <AiReviewPage setView={setView} /> : null}
       {view === "procurement" ? <ProcurementProgress portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "progress" ? <ProgressBoard setView={setView} setSelectedId={setSelectedId} /> : null}
