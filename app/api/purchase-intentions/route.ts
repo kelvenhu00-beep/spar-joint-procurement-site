@@ -3,7 +3,8 @@ import { getDb } from "../../../db";
 import { auditLogs, enterprises, products, purchaseIntentions } from "../../../db/schema";
 import { badRequest, makeId, serverError } from "../_utils";
 
-const DEMO_ENTERPRISE_ID = "ent_jiarong";
+const CURRENT_ENTERPRISE_ID = "ent_jiarong";
+const CURRENT_ENTERPRISE_USER_ID = "eu_jiarong_buyer";
 
 type PurchaseIntentionPayload = {
   productId?: string;
@@ -17,8 +18,22 @@ export async function GET() {
   try {
     const db = getDb();
     const rows = await db
-      .select()
+      .select({
+        id: purchaseIntentions.id,
+        productId: purchaseIntentions.productId,
+        productName: products.cnName,
+        enterpriseId: purchaseIntentions.enterpriseId,
+        enterpriseName: enterprises.shortName,
+        quantityBoxes: purchaseIntentions.quantityBoxes,
+        receivingRegion: purchaseIntentions.receivingRegion,
+        expectedArrivalWindow: purchaseIntentions.expectedArrivalWindow,
+        note: purchaseIntentions.note,
+        status: purchaseIntentions.status,
+        submittedAt: purchaseIntentions.submittedAt,
+      })
       .from(purchaseIntentions)
+      .leftJoin(products, eq(purchaseIntentions.productId, products.id))
+      .leftJoin(enterprises, eq(purchaseIntentions.enterpriseId, enterprises.id))
       .orderBy(desc(purchaseIntentions.submittedAt))
       .limit(50);
 
@@ -55,7 +70,7 @@ export async function POST(request: Request) {
     await db
       .insert(enterprises)
       .values({
-        id: DEMO_ENTERPRISE_ID,
+        id: CURRENT_ENTERPRISE_ID,
         name: "广东嘉荣超市有限公司",
         shortName: "广东嘉荣集团",
         type: "区域头部超市",
@@ -69,7 +84,8 @@ export async function POST(request: Request) {
       .values({
         id,
         productId,
-        enterpriseId: DEMO_ENTERPRISE_ID,
+        enterpriseId: CURRENT_ENTERPRISE_ID,
+        enterpriseUserId: CURRENT_ENTERPRISE_USER_ID,
         quantityBoxes,
         receivingRegion,
         expectedArrivalWindow,
@@ -87,7 +103,7 @@ export async function POST(request: Request) {
     await db.insert(auditLogs).values({
       id: makeId("audit"),
       actorType: "enterprise_user",
-      actorId: "demo-buyer-user",
+      actorId: CURRENT_ENTERPRISE_USER_ID,
       action: "purchase_intention.submitted",
       targetType: "purchase_intention",
       targetId: id,

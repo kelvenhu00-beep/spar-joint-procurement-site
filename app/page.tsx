@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type View =
   | "login"
@@ -54,6 +54,20 @@ type Product = {
   summary: string;
   decisionNote: string;
   image: string;
+};
+
+type PurchaseIntentionRow = {
+  id: string;
+  productId: string;
+  productName: string | null;
+  enterpriseId: string;
+  enterpriseName: string | null;
+  quantityBoxes: number;
+  receivingRegion: string;
+  expectedArrivalWindow: string;
+  note: string;
+  status: string;
+  submittedAt: string;
 };
 
 const products: Product[] = [
@@ -684,12 +698,8 @@ function LoginPage({ onLogin }: { onLogin: (portal: Portal, operatorRole: Operat
         <button className="primary-button full" type="button" onClick={() => onLogin(selectedPortal, selectedOperatorRole)}>
           进入{selectedProfile.shortName}
         </button>
-        <div className="login-divider">或</div>
-        <button className="outline-button full" type="button" onClick={() => onLogin(selectedPortal, selectedOperatorRole)}>
-          演示登录
-        </button>
         <small>
-          当前为演示登录。正式系统中权限由账号固定，不允许经理账号执行总监审批。
+          当前为内测账号入口。正式上线前需接入企业员工账号认证、密码策略和登录审计。
         </small>
       </section>
       <footer className="login-footer">
@@ -1187,21 +1197,43 @@ function IntentionAdminPage({
   setSelectedId: (id: string) => void;
 }) {
   const isDirector = operatorRole === "director";
-  const rows = [
-    ["广东嘉荣集团", "Manner 曼纳威化饼干", "120 箱", "山东区域仓", "2026 年 Q4", "待核价"],
-    ["家家悦集团", "HARIBO 哈瑞宝金熊软糖", "260 箱", "山东区域仓", "2026 年 Q4", "待确认授权"],
-    ["湖南佳惠百货", "Walker's 沃克斯黄油酥饼", "80 箱", "华中区域仓", "2026 年 Q4", "待补资料"],
-    ["广东嘉荣集团", "Ritter Sport 瑞特斯波德牛奶巧克力", "160 箱", "华南区域仓", "2026 年 Q4", "待二次确认"],
-  ];
+  const [rows, setRows] = useState<PurchaseIntentionRow[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/purchase-intentions/")
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          purchaseIntentions?: PurchaseIntentionRow[];
+          error?: string;
+        };
+        if (!response.ok) throw new Error(data.error ?? "采购意向加载失败");
+        if (active) {
+          setRows(data.purchaseIntentions ?? []);
+          setLoadState("ready");
+        }
+      })
+      .catch(() => {
+        if (active) setLoadState("error");
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const pendingCount = rows.filter((row) => row.status === "submitted").length;
+  const reviewableCount = rows.filter((row) => row.quantityBoxes >= 120).length;
 
   return (
     <>
       <PageTitle title="意向审核" subtitle={isDirector ? "商品总监审批成团二次确认，经理账号不能代替审批" : "商品运营经理汇总企业意向、补齐资料并提交总监审批"} />
       <section className="metric-strip client-metrics">
-        <MetricCard icon="◇" label="待审核意向" value="37" hint="来自 12 家区域零售企业" />
-        <MetricCard icon="▤" label="待核价" value="9" hint="需确认供应商报价口径" />
-        <MetricCard icon="▧" label="待补资料" value="14" hint="包装、标签、授权资料未完整" />
-        <MetricCard icon="♙" label="可二次确认" value="6" hint="接近或达到 20 尺柜" />
+        <MetricCard icon="◇" label="待审核意向" value={loadState === "ready" ? String(pendingCount) : "-"} hint="来自真实采购意向表" />
+        <MetricCard icon="▤" label="待核价" value="0" hint="需确认供应商报价口径" />
+        <MetricCard icon="▧" label="待补资料" value="0" hint="包装、标签、授权资料未完整" />
+        <MetricCard icon="♙" label="可二次确认" value={loadState === "ready" ? String(reviewableCount) : "-"} hint="按已提交意向初步判断" />
       </section>
       <section className="progress-filter-row">
         <input placeholder="搜索企业、商品、区域仓" />
@@ -1224,16 +1256,27 @@ function IntentionAdminPage({
           <h2>企业采购意向列表</h2>
           <div className="data-table intention-admin">
             <div>企业</div><div>商品</div><div>意向数量</div><div>收货区域</div><div>到货窗口</div><div>当前状态</div><div>操作</div>
-            {rows.flatMap((row, index) => (
-              row.concat("查看商品 审核").map((cell, cellIndex) => (
-                <div key={`${row[0]}-${row[1]}-${cellIndex}`}>
+            {loadState === "loading" ? <div className="table-state" aria-live="polite">正在加载真实采购意向...</div> : null}
+            {loadState === "error" ? <div className="table-state error">采购意向加载失败，请检查数据库和 API。</div> : null}
+            {loadState === "ready" && rows.length === 0 ? <div className="table-state">暂无企业采购意向。</div> : null}
+            {rows.flatMap((row) => (
+              [
+                row.enterpriseName ?? row.enterpriseId,
+                row.productName ?? row.productId,
+                `${row.quantityBoxes} 箱`,
+                row.receivingRegion,
+                row.expectedArrivalWindow,
+                row.status === "submitted" ? "待审核" : row.status,
+                "操作",
+              ].map((cell, cellIndex) => (
+                <div key={`${row.id}-${cellIndex}`}>
                   {cellIndex === 5 ? <span className="status-pill">{cell}</span> : cell}
                   {cellIndex === 6 ? (
                     <button
                       className="plain-link inline-action"
                       type="button"
                       onClick={() => {
-                        setSelectedId(products[index % products.length].id);
+                        setSelectedId(row.productId);
                         setView("detail");
                       }}
                     >

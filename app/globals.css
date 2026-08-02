@@ -3708,6 +3708,21 @@ label span {
   border-bottom: 0;
 }
 
+.data-table.intention-admin .table-state {
+  grid-column: 1 / -1;
+  min-height: 64px;
+  display: flex;
+  align-items: center;
+  color: var(--color-gray-600);
+  background: var(--color-white);
+  font-weight: 500;
+}
+
+.data-table.intention-admin .table-state.error {
+  color: #991b1b;
+  background: #fef2f2;
+}
+
 .inline-action {
   min-height: 24px;
   margin-top: var(--space-1);
