@@ -9,11 +9,16 @@ type View =
   | "procurement"
   | "progress"
   | "intention"
+  | "intentionAdmin"
   | "detail"
   | "clients"
   | "reports"
   | "messages"
   | "help";
+
+type Portal = "buyer" | "operator";
+
+type NavItem = { label: string; view: View; icon: string; badge?: string; dividerBefore?: boolean };
 
 type Product = {
   id: string;
@@ -217,16 +222,66 @@ const products: Product[] = [
   },
 ];
 
-const navItems: { label: string; view: View; icon: string; badge?: string; dividerBefore?: boolean }[] = [
+const buyerNavItems: NavItem[] = [
   { label: "工作台", view: "dashboard", icon: "⌂" },
   { label: "商品目录", view: "catalog", icon: "▤" },
   { label: "成团进度", view: "progress", icon: "▧" },
-  { label: "采购进度", view: "procurement", icon: "◇" },
   { label: "采购意向", view: "intention", icon: "◇" },
+  { label: "我的采购进度", view: "procurement", icon: "▥" },
+  { label: "消息中心", view: "messages", icon: "○", badge: "3", dividerBefore: true },
+  { label: "帮助中心", view: "help", icon: "?" },
+];
+
+const operatorNavItems: NavItem[] = [
+  { label: "运营工作台", view: "dashboard", icon: "⌂" },
+  { label: "商品资料库", view: "catalog", icon: "▤" },
+  { label: "成团管理", view: "progress", icon: "▧" },
+  { label: "意向审核", view: "intentionAdmin", icon: "◇" },
+  { label: "采购履约", view: "procurement", icon: "▥" },
   { label: "企业客户", view: "clients", icon: "♙" },
   { label: "数据报表", view: "reports", icon: "▥" },
   { label: "消息中心", view: "messages", icon: "○", badge: "3", dividerBefore: true },
   { label: "帮助中心", view: "help", icon: "?" },
+];
+
+const portalProfiles: Record<
+  Portal,
+  {
+    name: string;
+    shortName: string;
+    organization: string;
+    role: string;
+    userName: string;
+    userInitial: string;
+  }
+> = {
+  buyer: {
+    name: "企业采购端",
+    shortName: "采购端",
+    organization: "广东嘉荣集团",
+    role: "食品采购部 · 王经理",
+    userName: "王经理",
+    userInitial: "W",
+  },
+  operator: {
+    name: "平台运营后台",
+    shortName: "运营端",
+    organization: "SPAR 中国供应链",
+    role: "商品运营部 · 刘经理",
+    userName: "刘经理",
+    userInitial: "L",
+  },
+};
+
+const priceTermLabel = "预估到仓成本";
+const priceBasisText = "按单品整柜联采模型估算，包含海外供货价、国际运输、进口税费、国内二段物流和平台服务费；不是 FOB/CIF/EXW 的最终成交报价。";
+const costItems = [
+  ["海外供货价", "品牌方或供应商确认"],
+  ["国际运输", "按单品整柜估算"],
+  ["进口税费", "系统预估 + 人工复核"],
+  ["国内二段物流", "到指定区域仓估算"],
+  ["平台服务费", "公开透明拆分"],
+  ["最终报价", "二次确认时锁定"],
 ];
 
 const catalogCategories = ["全部商品", "休闲食品", "饮料冲调", "粮油调味", "个人护理", "家庭清洁", "母婴用品", "宠物用品", "美妆护肤", "保健品", "酒类", "更多⌄"];
@@ -240,13 +295,21 @@ function progressOf(product: Product) {
 function AppShell({
   activeView,
   setView,
+  portal,
+  setPortal,
+  onLogout,
   children,
 }: {
   activeView: View;
   setView: (view: View) => void;
+  portal: Portal;
+  setPortal: (portal: Portal) => void;
+  onLogout: () => void;
   children: React.ReactNode;
 }) {
   const navView = activeView === "detail" ? "catalog" : activeView;
+  const navItems = portal === "buyer" ? buyerNavItems : operatorNavItems;
+  const profile = portalProfiles[portal];
 
   return (
     <div className="app-shell">
@@ -277,9 +340,9 @@ function AppShell({
         </nav>
 
         <div className="company-card">
-          <span>当前企业</span>
-          <strong>广东嘉荣集团</strong>
-          <small>食品采购部 · 王经理</small>
+          <span>{portal === "buyer" ? "当前企业" : "当前组织"}</span>
+          <strong>{profile.organization}</strong>
+          <small>{profile.role}</small>
           <i>⌄</i>
         </div>
       </aside>
@@ -290,6 +353,14 @@ function AppShell({
             ☰
           </button>
           <div className="topbar-actions">
+            <div className="portal-switch" aria-label="演示端口切换">
+              <button className={portal === "buyer" ? "active" : ""} type="button" onClick={() => setPortal("buyer")}>
+                企业采购端
+              </button>
+              <button className={portal === "operator" ? "active" : ""} type="button" onClick={() => setPortal("operator")}>
+                平台运营后台
+              </button>
+            </div>
             <button className="icon-button alert" type="button" aria-label="消息" onClick={() => setView("messages")}>
               ♧
               <span>3</span>
@@ -298,10 +369,13 @@ function AppShell({
               ?
             </button>
             <div className="user-chip">
-              <b>W</b>
-              <span>王经理</span>
+              <b>{profile.userInitial}</b>
+              <span>{profile.userName}</span>
               <em>⌄</em>
             </div>
+            <button className="logout-button" type="button" onClick={onLogout}>
+              退出
+            </button>
           </div>
         </header>
         <main className="page-content">{children}</main>
@@ -318,7 +392,10 @@ function ProductImage({ product, size = "card" }: { product: Product; size?: "ca
   );
 }
 
-function LoginPage({ setView }: { setView: (view: View) => void }) {
+function LoginPage({ onLogin }: { onLogin: (portal: Portal) => void }) {
+  const [selectedPortal, setSelectedPortal] = useState<Portal>("buyer");
+  const selectedProfile = portalProfiles[selectedPortal];
+
   return (
     <main className="login-page">
       <section className="login-brand">
@@ -331,11 +408,26 @@ function LoginPage({ setView }: { setView: (view: View) => void }) {
         </div>
       </section>
       <section className="login-card">
-        <h1>欢迎登录 SPAR 联采工作台</h1>
-        <p>专业的进口商品采购与供应链协同平台</p>
+        <h1>登录 SPAR 联采系统</h1>
+        <p>企业采购端和平台运营后台分离，登录后按角色显示对应功能。</p>
+        <div className="login-role-tabs">
+          <button className={selectedPortal === "buyer" ? "active" : ""} type="button" onClick={() => setSelectedPortal("buyer")}>
+            企业采购端
+            <span>超市企业采购使用</span>
+          </button>
+          <button className={selectedPortal === "operator" ? "active" : ""} type="button" onClick={() => setSelectedPortal("operator")}>
+            平台运营后台
+            <span>SPAR 供应链团队使用</span>
+          </button>
+        </div>
+        <div className="login-context">
+          <span>当前登录端口</span>
+          <strong>{selectedProfile.name}</strong>
+          <small>{selectedProfile.organization} · {selectedProfile.role}</small>
+        </div>
         <label>
           <span>账号</span>
-          <input placeholder="请输入手机号 / 邮箱 / 账号" />
+          <input placeholder={selectedPortal === "buyer" ? "企业员工账号 / 邮箱" : "运营后台账号 / 邮箱"} />
         </label>
         <label>
           <span>密码</span>
@@ -347,15 +439,15 @@ function LoginPage({ setView }: { setView: (view: View) => void }) {
           </label>
           <button type="button">忘记密码?</button>
         </div>
-        <button className="primary-button full" type="button" onClick={() => setView("dashboard")}>
-          登录
+        <button className="primary-button full" type="button" onClick={() => onLogin(selectedPortal)}>
+          进入{selectedProfile.shortName}
         </button>
         <div className="login-divider">或</div>
-        <button className="outline-button full" type="button" onClick={() => setView("dashboard")}>
-          SSO 单点登录
+        <button className="outline-button full" type="button" onClick={() => onLogin(selectedPortal)}>
+          演示登录
         </button>
         <small>
-          还没有账号？ <b>联系您的客户经理开通</b>
+          当前为演示登录。正式系统需要接入真实认证、企业组织、员工账号和角色权限。
         </small>
       </section>
       <footer className="login-footer">
@@ -368,28 +460,43 @@ function LoginPage({ setView }: { setView: (view: View) => void }) {
 }
 
 function Dashboard({
+  portal,
   setView,
   setSelectedId,
 }: {
+  portal: Portal;
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
   const featured = products.slice(0, 3);
   const topProgress = products[1];
   const pct = progressOf(topProgress);
+  const isBuyer = portal === "buyer";
+  const profile = portalProfiles[portal];
 
   return (
     <>
       <section className="dashboard-title">
-        <h1>工作台</h1>
-        <p>下午好，王经理</p>
+        <h1>{isBuyer ? "企业采购工作台" : "平台运营工作台"}</h1>
+        <p>下午好，{profile.userName} · {profile.name}</p>
       </section>
 
       <section className="metric-strip">
-        <MetricCard icon="▱" label="真实商品资料" value="8" hint="德国、奥地利、英国、意大利商品" />
-        <MetricCard icon="♙" label="接近成团" value="3" hint="超过 70% 的单品" />
-        <MetricCard icon="▰" label="我的意向" value="12" hint="待二次确认 3 个" />
-        <MetricCard icon="▤" label="费用拆解" value="5 项" hint="采购价、运输、税费、配送、服务费" />
+        {isBuyer ? (
+          <>
+            <MetricCard icon="▱" label="可采购商品" value="8" hint="德国、奥地利、英国、意大利商品" />
+            <MetricCard icon="♙" label="接近成团" value="3" hint="超过 70% 的单品" />
+            <MetricCard icon="▰" label="我的意向" value="12" hint="待二次确认 3 个" />
+            <MetricCard icon="▤" label="成本拆解" value="5 项" hint="供货价、运输、税费、配送、服务费" />
+          </>
+        ) : (
+          <>
+            <MetricCard icon="▱" label="待完善商品" value="18" hint="缺实物图、外箱图或标签资料" />
+            <MetricCard icon="♙" label="待核价商品" value="9" hint="供应商报价和税费需复核" />
+            <MetricCard icon="▰" label="待审核意向" value="37" hint="来自 12 家区域零售企业" />
+            <MetricCard icon="▤" label="接近成团" value="3" hint="需要运营跟进二次确认" />
+          </>
+        )}
       </section>
 
       <div className="dashboard-grid">
@@ -397,10 +504,10 @@ function Dashboard({
           <div className="panel-head">
             <div>
               <h2>重点单品</h2>
-              <p>成团进度高、资料相对完整的商品</p>
+              <p>{isBuyer ? "成团进度高、资料相对完整的商品" : "需要优先维护报价、授权和资料完整度的商品"}</p>
             </div>
             <button className="text-link" type="button" onClick={() => setView("catalog")}>
-              查看全部商品 ›
+              {isBuyer ? "查看全部商品" : "进入商品资料库"} ›
             </button>
           </div>
 
@@ -417,12 +524,9 @@ function Dashboard({
                   <Spec label="保质期" value={product.shelfLife} />
                 </div>
                 <div className="price-split">
+                  <PriceBlock product={product} />
                   <div>
-                    <span>价格</span>
-                    <strong>{product.price}</strong>
-                  </div>
-                  <div>
-                    <span>毛利率</span>
+                    <span>预估毛利带</span>
                     <strong>{product.gross}</strong>
                   </div>
                 </div>
@@ -443,10 +547,10 @@ function Dashboard({
                     type="button"
                     onClick={() => {
                       setSelectedId(product.id);
-                      setView("intention");
+                      setView(isBuyer ? "intention" : "detail");
                     }}
                   >
-                    加入采购
+                    {isBuyer ? "加入采购" : "维护资料"}
                   </button>
                 </div>
               </article>
@@ -487,15 +591,15 @@ function Dashboard({
           </section>
 
           <section className="advice-card">
-            <strong>处理建议</strong>
-            <p>提交基础意向，并要求平台补充实物包装和外箱照片。</p>
-            <p>下午茶主题、女神节、办公零食、会员日加购。</p>
+            <strong>{isBuyer ? "采购建议" : "运营建议"}</strong>
+            <p>{isBuyer ? "提交基础意向，并要求平台补充实物包装和外箱照片。" : "优先复核接近成团商品的授权、价格口径、HS 编码和物流估算。"}</p>
+            <p>{isBuyer ? "下午茶主题、女神节、办公零食、会员日加购。" : "先处理 Manner、HARIBO、JACOB'S 的二次确认资料。"}</p>
           </section>
 
           <section className="status-card">
-            <h2>采购状态</h2>
-            <p>公开资料已录入：箱规、费用、装柜量和毛利带需供应商内部复核。</p>
-            <button className="plain-link" type="button" onClick={() => setView("procurement")}>
+            <h2>{isBuyer ? "采购状态" : "后台状态"}</h2>
+            <p>{isBuyer ? "当前展示为预估到仓成本，正式采购前需平台二次确认最终报价。" : "商品资料、成本口径、授权资料和成团意向需要分工复核后再开放给企业确认。"}</p>
+            <button className="plain-link" type="button" onClick={() => setView(isBuyer ? "procurement" : "intentionAdmin")}>
               去查看 ›
             </button>
           </section>
@@ -531,16 +635,20 @@ function MetricCard({ icon, label, value, hint }: { icon: string; label: string;
 }
 
 function Catalog({
+  portal,
   setView,
   setSelectedId,
 }: {
+  portal: Portal;
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
+  const isBuyer = portal === "buyer";
+
   return (
     <>
       <section className="catalog-toolbar">
-        <h1>商品目录</h1>
+        <h1>{isBuyer ? "商品目录" : "商品资料库"}</h1>
         <div className="catalog-search">
           <input placeholder="请输入商品名称、品牌或关键词" />
           <button className="primary-button" type="button">
@@ -567,7 +675,7 @@ function Catalog({
           <FilterGroup title="原产国/地区" items={["全部", "德国", "英国", "法国", "意大利", "西班牙"]} />
           <FilterGroup title="品牌" items={["全部", "Haribo", "Jacob's", "Manner", "Twinings", "Ritter Sport"]} hasSearch />
           <div className="filter-block">
-            <h3>价格区间 (¥/箱)</h3>
+            <h3>预估到仓成本区间 (¥/箱)</h3>
             <div className="price-filter">
               <input placeholder="最低价" />
               <span>-</span>
@@ -602,8 +710,8 @@ function Catalog({
                 <TagRow tags={[product.country, product.category]} />
                 <h2>{product.cnName}</h2>
                 <p>{product.spec}</p>
-                <strong>{product.price}</strong>
-                <small>{product.moq}</small>
+                <PriceBlock product={product} compact />
+                <small>{product.moq} · 非最终成交报价</small>
                 <div>
                   <button
                     className="favorite-button"
@@ -620,10 +728,10 @@ function Catalog({
                     type="button"
                     onClick={() => {
                       setSelectedId(product.id);
-                      setView("intention");
+                      setView(isBuyer ? "intention" : "detail");
                     }}
                   >
-                    加入采购
+                    {isBuyer ? "加入采购" : "维护资料"}
                   </button>
                 </div>
               </article>
@@ -667,12 +775,15 @@ function FilterGroup({ title, items, hasSearch = false }: { title: string; items
 }
 
 function ProcurementProgress({
+  portal,
   setView,
   setSelectedId,
 }: {
+  portal: Portal;
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
+  const isBuyer = portal === "buyer";
   const rows = [
     ["曼纳原味榛子威化 75g", "SPAR20240524001", "德国奥地利供应商", "清关中", 83, "2024-06-05", "进行中"],
     ["哈瑞宝金熊软糖 175g", "SPAR20240523002", "HARIBO GmbH & Co. KG", "运输中", 62, "2024-06-08", "进行中"],
@@ -684,7 +795,10 @@ function ProcurementProgress({
 
   return (
     <>
-      <PageTitle title="采购进度" subtitle="全局掌握采购项目进展，高效协同，准时交付" />
+      <PageTitle
+        title={isBuyer ? "我的采购进度" : "采购履约进度"}
+        subtitle={isBuyer ? "查看本企业已确认采购项目的履约状态" : "平台内部跟踪采购、运输、报关、分拣和配送状态"}
+      />
       <section className="metric-strip procurement-metrics">
         <MetricCard icon="◰" label="进行中项目" value="8" hint="较上周 ↑ 2" />
         <MetricCard icon="☑" label="已完成项目" value="26" hint="较上周 ↑ 5" />
@@ -704,7 +818,7 @@ function ProcurementProgress({
         <button type="button">全部阶段⌄</button>
         <button type="button">起始日期 - 结束日期</button>
         <button type="button">重置</button>
-        <button className="primary-button" type="button">导出报表</button>
+        {isBuyer ? null : <button className="primary-button" type="button">导出报表</button>}
       </section>
       <section className="procurement-layout">
         <div className="panel procurement-table">
@@ -788,6 +902,79 @@ function ProcurementRow({
       <div>{row[5]}<small>{percent > 90 ? "提前 2 天" : "剩余 5 天"}</small></div>
       <div><span className={`status-pill ${row[6] === "异常" ? "danger" : row[6] === "已完成" ? "done" : ""}`}>{row[6]}</span></div>
       <div><button className="outline-button" type="button" onClick={onDetail}>查看详情</button></div>
+    </>
+  );
+}
+
+function IntentionAdminPage({ setView, setSelectedId }: { setView: (view: View) => void; setSelectedId: (id: string) => void }) {
+  const rows = [
+    ["广东嘉荣集团", "Manner 曼纳威化饼干", "120 箱", "山东区域仓", "2026 年 Q4", "待核价"],
+    ["家家悦集团", "HARIBO 哈瑞宝金熊软糖", "260 箱", "山东区域仓", "2026 年 Q4", "待确认授权"],
+    ["湖南佳惠百货", "JACOB'S 沃克斯黄油酥饼", "80 箱", "华中区域仓", "2026 年 Q4", "待补资料"],
+    ["广东嘉荣集团", "Ritter Sport 瑞特斯波德牛奶巧克力", "160 箱", "华南区域仓", "2026 年 Q4", "待二次确认"],
+  ];
+
+  return (
+    <>
+      <PageTitle title="意向审核" subtitle="平台运营后台用于审核企业意向、补齐资料并发起二次确认" />
+      <section className="metric-strip client-metrics">
+        <MetricCard icon="◇" label="待审核意向" value="37" hint="来自 12 家区域零售企业" />
+        <MetricCard icon="▤" label="待核价" value="9" hint="需确认供应商报价口径" />
+        <MetricCard icon="▧" label="待补资料" value="14" hint="包装、标签、授权资料未完整" />
+        <MetricCard icon="♙" label="可二次确认" value="6" hint="接近或达到 20 尺柜" />
+      </section>
+      <section className="progress-filter-row">
+        <input placeholder="搜索企业、商品、区域仓" />
+        <button type="button">全部状态⌄</button>
+        <button type="button">商品国家⌄</button>
+        <button type="button">到货窗口⌄</button>
+        <button type="button">重置</button>
+        <button className="primary-button" type="button">发起二次确认</button>
+      </section>
+      <section className="procurement-layout">
+        <article className="panel intention-admin-table">
+          <h2>企业采购意向列表</h2>
+          <div className="data-table intention-admin">
+            <div>企业</div><div>商品</div><div>意向数量</div><div>收货区域</div><div>到货窗口</div><div>当前状态</div><div>操作</div>
+            {rows.flatMap((row, index) => (
+              row.concat("查看商品 审核").map((cell, cellIndex) => (
+                <div key={`${row[0]}-${row[1]}-${cellIndex}`}>
+                  {cellIndex === 5 ? <span className="status-pill">{cell}</span> : cell}
+                  {cellIndex === 6 ? (
+                    <button
+                      className="plain-link inline-action"
+                      type="button"
+                      onClick={() => {
+                        setSelectedId(products[index % products.length].id);
+                        setView("detail");
+                      }}
+                    >
+                      打开
+                    </button>
+                  ) : null}
+                </div>
+              ))
+            ))}
+          </div>
+        </article>
+        <aside className="procurement-side">
+          <section className="panel stage-card">
+            <h2>审核要点 <span>运营端</span></h2>
+            <div className="stage-steps">
+              {["供应商报价口径", "品牌授权范围", "HS 编码和税费", "包装与中文标签", "20 尺柜装柜量", "二次确认价格"].map((step, index) => (
+                <div key={step} className={index === 0 ? "active" : ""}>
+                  <b>{index + 1}</b>
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+          <section className="advice-card">
+            <strong>价格口径提醒</strong>
+            <p>企业端只展示预估到仓成本。运营端在二次确认前必须复核供货价、国际物流、税费、二配和服务费。</p>
+          </section>
+        </aside>
+      </section>
     </>
   );
 }
@@ -1069,11 +1256,11 @@ function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product;
             <label><span>期望到货窗口</span><button className="field-button" type="button">2026 年 Q4 <em>⌄</em></button></label>
           </div>
           <label className="note-field"><span>备注（选填）</span><textarea placeholder="填写陈列计划、门店覆盖、采购审批要求或其他说明" maxLength={200} /><small>0 / 200</small></label>
-          <div className="notice"><b>i</b><span>提交后平台只记录企业采购意向，达到 20 尺柜后，平台发起二次确认；正式采购前再确认价格、合同、预付款和交期。</span></div>
+          <div className="notice"><b>i</b><span>提交后平台只记录企业采购意向，达到 20 尺柜后，平台发起二次确认；正式采购前再确认价格口径、合同、预付款和交期。</span></div>
           <button className="primary-button submit-button" type="button">提交意向</button>
         </section>
         <aside className="intention-side">
-          <section className="panel current-product"><h2>当前商品</h2><div className="current-product-body"><ProductImage product={selectedProduct} size="thumb" /><div><h3>{selectedProduct.cnName}</h3><p>{selectedProduct.spec} · {selectedProduct.caseSpec}</p><strong>{selectedProduct.price}</strong><span>预计到仓成本</span></div></div><button className="soft-button" type="button" onClick={() => setView("detail")}>查看商品详情 →</button></section>
+          <section className="panel current-product"><h2>当前商品</h2><div className="current-product-body"><ProductImage product={selectedProduct} size="thumb" /><div><h3>{selectedProduct.cnName}</h3><p>{selectedProduct.spec} · {selectedProduct.caseSpec}</p><PriceBlock product={selectedProduct} compact /></div></div><button className="soft-button" type="button" onClick={() => setView("detail")}>查看商品详情 →</button></section>
           <section className="panel selection-card"><h2>当前选择</h2><SelectionLine icon="▰" label="意向数量" value="120 箱" /><SelectionLine icon="⌖" label="收货区域" value="山东区域仓" /><SelectionLine icon="□" label="期望到货窗口" value="2026 年 Q4" /><div className="selection-progress"><div><span>成团进度</span><strong>{pct}%</strong></div><ProgressBar value={pct} /><small>距离成团目标 {100 - pct}%</small></div></section>
           <section className="rule-card"><h2>意向规则</h2><p>企业可修改或撤回意向；成团后二次确认前，平台不应对外承诺最终成交价格。</p><button className="plain-link" type="button">查看平台规则 →</button></section>
         </aside>
@@ -1083,8 +1270,9 @@ function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product;
   );
 }
 
-function DetailPage({ product, setView }: { product: Product; setView: (view: View) => void }) {
+function DetailPage({ product, portal, setView }: { product: Product; portal: Portal; setView: (view: View) => void }) {
   const pct = progressOf(product);
+  const isBuyer = portal === "buyer";
 
   return (
     <>
@@ -1099,13 +1287,14 @@ function DetailPage({ product, setView }: { product: Product; setView: (view: Vi
           <div className="detail-metrics">
             <Spec label="商品规格" value={product.spec} />
             <Spec label="整箱规格" value={product.caseSpec} />
-            <Spec label="预计到仓成本" value={product.price} />
-            <Spec label="毛利带" value={product.gross} />
+            <Spec label={priceTermLabel} value={product.price} />
+            <Spec label="预估毛利带" value={product.gross} />
             <Spec label="20 尺柜目标" value={`${product.targetBoxes.toLocaleString()} 箱`} />
             <Spec label="当前总意向" value={`${product.currentBoxes.toLocaleString()} 箱`} />
           </div>
+          <CostDisclosure />
           <div className="detail-progress"><div><strong>{pct}%</strong><span>当前成团进度</span></div><ProgressBar value={pct} /></div>
-          <div className="card-actions detail-actions"><button className="outline-button" type="button" onClick={() => setView("catalog")}>返回目录</button><button className="primary-button" type="button" onClick={() => setView("intention")}>提交采购意向</button></div>
+          <div className="card-actions detail-actions"><button className="outline-button" type="button" onClick={() => setView("catalog")}>返回{isBuyer ? "目录" : "资料库"}</button><button className="primary-button" type="button" onClick={() => setView(isBuyer ? "intention" : "intentionAdmin")}>{isBuyer ? "提交采购意向" : "查看意向审核"}</button></div>
         </div>
       </section>
     </>
@@ -1114,6 +1303,35 @@ function DetailPage({ product, setView }: { product: Product; setView: (view: Vi
 
 function PageTitle({ title, subtitle }: { title: string; subtitle: string }) {
   return <section className="page-heading inline"><h1>{title}</h1><p>{subtitle}</p></section>;
+}
+
+function PriceBlock({ product, compact = false }: { product: Product; compact?: boolean }) {
+  return (
+    <div className={`price-block ${compact ? "compact" : ""}`}>
+      <span>{priceTermLabel}</span>
+      <strong>{product.price}</strong>
+      <small>非 FOB/CIF/EXW 最终报价</small>
+    </div>
+  );
+}
+
+function CostDisclosure() {
+  return (
+    <section className="cost-disclosure">
+      <div>
+        <h2>价格口径</h2>
+        <p>{priceBasisText}</p>
+      </div>
+      <div className="cost-grid">
+        {costItems.map((item) => (
+          <div key={item[0]}>
+            <span>{item[0]}</span>
+            <strong>{item[1]}</strong>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function TagRow({ tags }: { tags: string[] }) {
@@ -1141,22 +1359,34 @@ function TrustCard({ icon, title, text }: { icon: string; title: string; text: s
 }
 
 export default function Home() {
+  const [portal, setPortalState] = useState<Portal | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [selectedId, setSelectedId] = useState(products[0].id);
   const selectedProduct = useMemo(() => products.find((product) => product.id === selectedId) ?? products[0], [selectedId]);
 
-  if (view === "login") {
-    return <LoginPage setView={setView} />;
+  const setPortal = (nextPortal: Portal) => {
+    setPortalState(nextPortal);
+    setView("dashboard");
+  };
+
+  const logout = () => {
+    setPortalState(null);
+    setView("dashboard");
+  };
+
+  if (!portal || view === "login") {
+    return <LoginPage onLogin={setPortal} />;
   }
 
   return (
-    <AppShell activeView={view} setView={setView}>
-      {view === "dashboard" ? <Dashboard setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "catalog" ? <Catalog setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "procurement" ? <ProcurementProgress setView={setView} setSelectedId={setSelectedId} /> : null}
+    <AppShell activeView={view} setView={setView} portal={portal} setPortal={setPortal} onLogout={logout}>
+      {view === "dashboard" ? <Dashboard portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "catalog" ? <Catalog portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "procurement" ? <ProcurementProgress portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "progress" ? <ProgressBoard setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} setView={setView} /> : null}
-      {view === "detail" ? <DetailPage product={selectedProduct} setView={setView} /> : null}
+      {view === "intentionAdmin" ? <IntentionAdminPage setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "detail" ? <DetailPage product={selectedProduct} portal={portal} setView={setView} /> : null}
       {view === "clients" ? <ClientsPage /> : null}
       {view === "reports" ? <ReportsPage /> : null}
       {view === "messages" ? <MessagesPage /> : null}
