@@ -1797,7 +1797,7 @@ function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product;
   const submitIntention = async () => {
     setSubmitState({ status: "submitting", message: "正在提交采购意向..." });
     try {
-      const response = await fetch("/api/purchase-intentions", {
+      const response = await fetch("/api/purchase-intentions/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
