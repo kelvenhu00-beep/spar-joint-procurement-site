@@ -19,8 +19,18 @@ type View =
   | "help";
 
 type Portal = "buyer" | "operator";
+type OperatorRole = "manager" | "director";
 
 type NavItem = { label: string; view: View; icon: string; badge?: string; dividerBefore?: boolean };
+type UserProfile = {
+  name: string;
+  shortName: string;
+  organization: string;
+  role: string;
+  userName: string;
+  userInitial: string;
+  authority: string;
+};
 
 type Product = {
   id: string;
@@ -249,34 +259,49 @@ const operatorNavItems: NavItem[] = [
   { label: "帮助中心", view: "help", icon: "?" },
 ];
 
-const portalProfiles: Record<
-  Portal,
-  {
-    name: string;
-    shortName: string;
-    organization: string;
-    role: string;
-    userName: string;
-    userInitial: string;
-  }
-> = {
-  buyer: {
-    name: "企业采购端",
-    shortName: "采购端",
-    organization: "广东嘉荣集团",
-    role: "食品采购部 · 王经理",
-    userName: "王经理",
-    userInitial: "W",
-  },
-  operator: {
+const buyerProfile: UserProfile = {
+  name: "企业采购端",
+  shortName: "采购端",
+  organization: "广东嘉荣集团",
+  role: "食品采购部 · 王经理",
+  userName: "王经理",
+  userInitial: "W",
+  authority: "提交意向、下载本企业文件",
+};
+
+const operatorProfiles: Record<OperatorRole, UserProfile> = {
+  manager: {
     name: "平台运营后台",
-    shortName: "运营端",
+    shortName: "经理端",
     organization: "SPAR 中国供应链",
-    role: "商品运营部 · 刘经理",
+    role: "商品运营经理 · 刘经理",
     userName: "刘经理",
     userInitial: "L",
+    authority: "商品提报、补充资料、提交总监审批",
+  },
+  director: {
+    name: "平台审批后台",
+    shortName: "总监端",
+    organization: "SPAR 中国供应链",
+    role: "商品总监 · 陈总监",
+    userName: "陈总监",
+    userInitial: "C",
+    authority: "审批通过、驳回、要求补充资料",
   },
 };
+
+const portalProfiles: Record<Portal, UserProfile> = {
+  buyer: {
+    ...buyerProfile,
+  },
+  operator: {
+    ...operatorProfiles.manager,
+  },
+};
+
+function getProfile(portal: Portal, operatorRole: OperatorRole): UserProfile {
+  return portal === "operator" ? operatorProfiles[operatorRole] : buyerProfile;
+}
 
 const priceTermLabel = "预估到仓成本";
 const priceBasisText = "按单品整柜联采模型估算，包含海外供货价、国际运输、进口税费、国内二段物流和平台服务费；不是 FOB/CIF/EXW 的最终成交报价。";
@@ -368,7 +393,7 @@ const productFlowFiles = [
     timing: "上架前",
     owner: "商品开发 / 关务",
     files: ["商品图片", "规格书", "外箱图", "中文标签资料", "授权文件"],
-    status: "已归档",
+    status: "待总监审批",
     buyerStatus: "可下载",
     note: "决定企业是否愿意进一步看这个商品。",
   },
@@ -377,7 +402,7 @@ const productFlowFiles = [
     timing: "展示预估到仓成本前",
     owner: "价格核算 / 物流 / 关务",
     files: ["供应商报价单", "运费报价", "税费测算依据", "成本拆解表"],
-    status: "当前可上传",
+    status: "经理补资料中",
     buyerStatus: "状态可见",
     note: "没有成本文件，不允许展示预估到仓成本。",
   },
@@ -463,6 +488,7 @@ function AppShell({
   activeView,
   setView,
   portal,
+  operatorRole,
   setPortal,
   onLogout,
   children,
@@ -470,13 +496,14 @@ function AppShell({
   activeView: View;
   setView: (view: View) => void;
   portal: Portal;
+  operatorRole: OperatorRole;
   setPortal: (portal: Portal) => void;
   onLogout: () => void;
   children: React.ReactNode;
 }) {
   const navView = activeView === "detail" ? "catalog" : activeView;
   const navItems = portal === "buyer" ? buyerNavItems : operatorNavItems;
-  const profile = portalProfiles[portal];
+  const profile = getProfile(portal, operatorRole);
 
   return (
     <div className="app-shell">
@@ -528,6 +555,7 @@ function AppShell({
                 平台运营后台
               </button>
             </div>
+            {portal === "operator" ? <span className="role-readonly">{operatorRole === "manager" ? "经理权限" : "总监权限"}</span> : null}
             <button className="icon-button alert" type="button" aria-label="消息" onClick={() => setView("messages")}>
               ♧
               <span>3</span>
@@ -559,9 +587,10 @@ function ProductImage({ product, size = "card" }: { product: Product; size?: "ca
   );
 }
 
-function LoginPage({ onLogin }: { onLogin: (portal: Portal) => void }) {
+function LoginPage({ onLogin }: { onLogin: (portal: Portal, operatorRole: OperatorRole) => void }) {
   const [selectedPortal, setSelectedPortal] = useState<Portal>("buyer");
-  const selectedProfile = portalProfiles[selectedPortal];
+  const [selectedOperatorRole, setSelectedOperatorRole] = useState<OperatorRole>("manager");
+  const selectedProfile = getProfile(selectedPortal, selectedOperatorRole);
 
   return (
     <main className="login-page">
@@ -587,10 +616,26 @@ function LoginPage({ onLogin }: { onLogin: (portal: Portal) => void }) {
             <span>SPAR 供应链团队使用</span>
           </button>
         </div>
+        {selectedPortal === "operator" ? (
+          <div className="login-permission-section">
+            <span>内部权限账号</span>
+            <div className="login-role-tabs internal">
+              <button className={selectedOperatorRole === "manager" ? "active" : ""} type="button" onClick={() => setSelectedOperatorRole("manager")}>
+                商品运营经理
+                <span>提报、上传资料、提交总监审批</span>
+              </button>
+              <button className={selectedOperatorRole === "director" ? "active" : ""} type="button" onClick={() => setSelectedOperatorRole("director")}>
+                商品总监
+                <span>审批、驳回、要求补充资料</span>
+              </button>
+            </div>
+          </div>
+        ) : null}
         <div className="login-context">
           <span>当前登录端口</span>
           <strong>{selectedProfile.name}</strong>
           <small>{selectedProfile.organization} · {selectedProfile.role}</small>
+          <small>权限：{selectedProfile.authority}</small>
         </div>
         <label>
           <span>账号</span>
@@ -606,15 +651,15 @@ function LoginPage({ onLogin }: { onLogin: (portal: Portal) => void }) {
           </label>
           <button type="button">忘记密码?</button>
         </div>
-        <button className="primary-button full" type="button" onClick={() => onLogin(selectedPortal)}>
+        <button className="primary-button full" type="button" onClick={() => onLogin(selectedPortal, selectedOperatorRole)}>
           进入{selectedProfile.shortName}
         </button>
         <div className="login-divider">或</div>
-        <button className="outline-button full" type="button" onClick={() => onLogin(selectedPortal)}>
+        <button className="outline-button full" type="button" onClick={() => onLogin(selectedPortal, selectedOperatorRole)}>
           演示登录
         </button>
         <small>
-          当前为演示登录。正式系统需要接入真实认证、企业组织、员工账号和角色权限。
+          当前为演示登录。正式系统中权限由账号固定，不允许经理账号执行总监审批。
         </small>
       </section>
       <footer className="login-footer">
@@ -628,10 +673,12 @@ function LoginPage({ onLogin }: { onLogin: (portal: Portal) => void }) {
 
 function Dashboard({
   portal,
+  operatorRole,
   setView,
   setSelectedId,
 }: {
   portal: Portal;
+  operatorRole: OperatorRole;
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
@@ -639,7 +686,7 @@ function Dashboard({
   const topProgress = products[1];
   const pct = progressOf(topProgress);
   const isBuyer = portal === "buyer";
-  const profile = portalProfiles[portal];
+  const profile = getProfile(portal, operatorRole);
 
   return (
     <>
@@ -657,12 +704,21 @@ function Dashboard({
             <MetricCard icon="▦" label="可下载单据" value="18" hint="资料包、回执、合同、付款和发票" />
           </>
         ) : (
-          <>
-            <MetricCard icon="▱" label="待完善商品" value="18" hint="缺实物图、外箱图或标签资料" />
-            <MetricCard icon="◎" label="AI 待初审" value="24" hint="规格、报价、报关、付款文件" />
-            <MetricCard icon="▦" label="待人工复核" value="16" hint="高风险文件 4 份" />
-            <MetricCard icon="▤" label="接近成团" value="3" hint="需要运营跟进二次确认" />
-          </>
+          operatorRole === "manager" ? (
+            <>
+              <MetricCard icon="▱" label="待补资料商品" value="18" hint="缺实物图、外箱图或标签资料" />
+              <MetricCard icon="◎" label="AI 待初审" value="24" hint="规格、报价、报关、付款文件" />
+              <MetricCard icon="▦" label="已提交审批" value="7" hint="等待商品总监处理" />
+              <MetricCard icon="▤" label="接近成团" value="3" hint="需要运营跟进二次确认" />
+            </>
+          ) : (
+            <>
+              <MetricCard icon="◇" label="待总监审批" value="12" hint="商品提报、授权和价格节点" />
+              <MetricCard icon="!" label="高风险审批" value="4" hint="授权、税费和标签资料待确认" />
+              <MetricCard icon="▦" label="已退回补充" value="3" hint="退回经理补资料" />
+              <MetricCard icon="▤" label="接近成团" value="3" hint="可发起二次确认审批" />
+            </>
+          )
         )}
       </section>
 
@@ -1698,7 +1754,17 @@ function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product;
   );
 }
 
-function DetailPage({ product, portal, setView }: { product: Product; portal: Portal; setView: (view: View) => void }) {
+function DetailPage({
+  product,
+  portal,
+  operatorRole,
+  setView,
+}: {
+  product: Product;
+  portal: Portal;
+  operatorRole: OperatorRole;
+  setView: (view: View) => void;
+}) {
   const pct = progressOf(product);
   const isBuyer = portal === "buyer";
 
@@ -1721,7 +1787,7 @@ function DetailPage({ product, portal, setView }: { product: Product; portal: Po
             <Spec label="当前总意向" value={`${product.currentBoxes.toLocaleString()} 箱`} />
           </div>
           <CostDisclosure />
-          <ProductFlowFilePanel product={product} isBuyer={isBuyer} setView={setView} />
+          <ProductFlowFilePanel product={product} isBuyer={isBuyer} operatorRole={operatorRole} setView={setView} />
           <div className="detail-progress"><div><strong>{pct}%</strong><span>当前成团进度</span></div><ProgressBar value={pct} /></div>
           <div className="card-actions detail-actions"><button className="outline-button" type="button" onClick={() => setView("catalog")}>返回{isBuyer ? "目录" : "资料库"}</button><button className="primary-button" type="button" onClick={() => setView(isBuyer ? "intention" : "intentionAdmin")}>{isBuyer ? "提交采购意向" : "查看意向审核"}</button></div>
         </div>
@@ -1733,12 +1799,17 @@ function DetailPage({ product, portal, setView }: { product: Product; portal: Po
 function ProductFlowFilePanel({
   product,
   isBuyer,
+  operatorRole,
   setView,
 }: {
   product: Product;
   isBuyer: boolean;
+  operatorRole: OperatorRole;
   setView: (view: View) => void;
 }) {
+  const canSubmit = !isBuyer && operatorRole === "manager";
+  const canApprove = !isBuyer && operatorRole === "director";
+
   return (
     <section className="product-flow-panel">
       <div className="panel-head">
@@ -1760,12 +1831,30 @@ function ProductFlowFilePanel({
         <StatusPill status={isBuyer ? "按商品归档" : "上传已锁定商品"} />
       </div>
 
+      {!isBuyer ? (
+        <div className="approval-authority-panel">
+          <article className={operatorRole === "manager" ? "active" : ""}>
+            <b>经理</b>
+            <strong>商品运营经理</strong>
+            <span>可提报、上传资料、提交总监审批；不能最终审批。</span>
+          </article>
+          <article className={operatorRole === "director" ? "active" : ""}>
+            <b>总监</b>
+            <strong>商品总监</strong>
+            <span>可审批通过、驳回、要求补充；不能作为提报人上传资料。</span>
+          </article>
+        </div>
+      ) : null}
+
       <div className="stage-file-list">
         {productFlowFiles.map((stage, index) => {
           const stageStatus = isBuyer ? stage.buyerStatus : stage.status;
-          const canUpload = !isBuyer && stage.status === "当前可上传";
+          const managerCanUpload = canSubmit && stage.status === "经理补资料中";
+          const directorCanApprove = canApprove && stage.status === "待总监审批";
+          const managerSubmitted = canSubmit && stage.status === "待总监审批";
+          const directorWaiting = canApprove && stage.status === "经理补资料中";
           return (
-            <article className={`stage-file-card ${canUpload ? "active" : ""}`} key={stage.stage}>
+            <article className={`stage-file-card ${managerCanUpload || directorCanApprove ? "active" : ""}`} key={stage.stage}>
               <div className="stage-index">{index + 1}</div>
               <div className="stage-body">
                 <div className="stage-title-line">
@@ -1781,7 +1870,19 @@ function ProductFlowFilePanel({
                   ))}
                 </div>
                 <p className="stage-note">{stage.note}</p>
-                {canUpload ? (
+                {managerSubmitted ? (
+                  <div className="stage-locked-message">
+                    <strong>已提交总监审批</strong>
+                    <span>经理账号不能审批该提报，只能等待总监处理或在退回后补充资料。</span>
+                  </div>
+                ) : null}
+                {directorWaiting ? (
+                  <div className="stage-locked-message">
+                    <strong>等待经理提交</strong>
+                    <span>经理尚未完成资料提报，总监账号不能代替上传。</span>
+                  </div>
+                ) : null}
+                {managerCanUpload ? (
                   <div className="stage-upload-slot">
                     <UploadDropzone label={`${stage.stage}文件上传`} />
                     <div className="upload-fields">
@@ -1790,8 +1891,19 @@ function ProductFlowFilePanel({
                       <button type="button">责任岗位：{stage.owner}</button>
                     </div>
                     <button className="primary-button full" type="button" onClick={() => setView("aiReview")}>
-                      上传后进入 AI 初审
+                      上传后提交总监审批
                     </button>
+                  </div>
+                ) : null}
+                {directorCanApprove ? (
+                  <div className="stage-approval-slot">
+                    <strong>总监审批动作</strong>
+                    <p>当前账号只处理审批结果，不修改经理提报的原始资料。</p>
+                    <div>
+                      <button className="primary-button" type="button">审批通过</button>
+                      <button className="outline-button" type="button">要求补充</button>
+                      <button className="outline-button danger" type="button">驳回</button>
+                    </div>
                   </div>
                 ) : null}
                 {isBuyer ? (
@@ -1814,7 +1926,7 @@ function ProductFlowFilePanel({
 }
 
 function StatusPill({ status }: { status: string }) {
-  const normalized = status.includes("补") || status.includes("高") || status.includes("缺") ? "danger" : status.includes("待") || status.includes("AI") || status.includes("未到") ? "pending" : status.includes("当前") ? "active" : status.includes("归档") || status.includes("审核") || status.includes("下载") || status.includes("锁定") ? "done" : "";
+  const normalized = status.includes("补") || status.includes("高") || status.includes("缺") ? "danger" : status.includes("待") || status.includes("AI") || status.includes("未到") ? "pending" : status.includes("当前") || status.includes("经理") || status.includes("总监") ? "active" : status.includes("归档") || status.includes("审核") || status.includes("下载") || status.includes("锁定") ? "done" : "";
   return <span className={`status-pill ${normalized}`}>{status}</span>;
 }
 
@@ -1887,12 +1999,16 @@ function TrustCard({ icon, title, text }: { icon: string; title: string; text: s
 
 export default function Home() {
   const [portal, setPortalState] = useState<Portal | null>(null);
+  const [operatorRole, setOperatorRole] = useState<OperatorRole>("manager");
   const [view, setView] = useState<View>("dashboard");
   const [selectedId, setSelectedId] = useState(products[0].id);
   const selectedProduct = useMemo(() => products.find((product) => product.id === selectedId) ?? products[0], [selectedId]);
 
-  const setPortal = (nextPortal: Portal) => {
+  const setPortal = (nextPortal: Portal, nextOperatorRole: OperatorRole = operatorRole) => {
     setPortalState(nextPortal);
+    if (nextPortal === "operator") {
+      setOperatorRole(nextOperatorRole);
+    }
     setView("dashboard");
   };
 
@@ -1906,8 +2022,8 @@ export default function Home() {
   }
 
   return (
-    <AppShell activeView={view} setView={setView} portal={portal} setPortal={setPortal} onLogout={logout}>
-      {view === "dashboard" ? <Dashboard portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
+    <AppShell activeView={view} setView={setView} portal={portal} operatorRole={operatorRole} setPortal={setPortal} onLogout={logout}>
+      {view === "dashboard" ? <Dashboard portal={portal} operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "catalog" ? <Catalog portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "documents" ? <FileCenterPage portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "aiReview" ? <AiReviewPage setView={setView} /> : null}
@@ -1915,7 +2031,7 @@ export default function Home() {
       {view === "progress" ? <ProgressBoard setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} setView={setView} /> : null}
       {view === "intentionAdmin" ? <IntentionAdminPage setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "detail" ? <DetailPage product={selectedProduct} portal={portal} setView={setView} /> : null}
+      {view === "detail" ? <DetailPage product={selectedProduct} portal={portal} operatorRole={operatorRole} setView={setView} /> : null}
       {view === "clients" ? <ClientsPage /> : null}
       {view === "reports" ? <ReportsPage /> : null}
       {view === "messages" ? <MessagesPage /> : null}
