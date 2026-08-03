@@ -190,6 +190,8 @@ export async function PATCH(request: Request) {
     const aiStatus = action === "ai_pass" ? "passed" : action === "ai_warning" ? "warning" : undefined;
     const manualStatus =
       action === "approve" ? "approved" : action === "request_changes" ? "changes_requested" : action === "reject" ? "rejected" : undefined;
+    const documentStatus =
+      action === "ai_pass" ? "reviewing" : action === "ai_warning" ? "changes_requested" : manualStatus;
 
     const db = getDb();
     const [upload] = await db
@@ -203,6 +205,18 @@ export async function PATCH(request: Request) {
       .returning();
 
     if (!upload) return badRequest("file upload does not exist");
+
+    if (documentStatus) {
+      await db
+        .update(businessDocuments)
+        .set({
+          status: documentStatus,
+          reviewedByUserId: action === "approve" || action === "request_changes" || action === "reject" ? user.id : undefined,
+          reviewedAt: action === "approve" || action === "request_changes" || action === "reject" ? sql`CURRENT_TIMESTAMP` : undefined,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(eq(businessDocuments.fileUploadId, id));
+    }
 
     await db.insert(auditLogs).values({
       id: makeId("audit"),

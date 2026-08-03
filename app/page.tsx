@@ -193,6 +193,15 @@ type OrderWorkflowStage = {
   label: string;
   requiredDocuments: string[];
   progress: number;
+  gate: {
+    ready: boolean;
+    blockedDocuments: string[];
+    requiredStatuses: Array<{
+      documentType: string;
+      status: string;
+      ready: boolean;
+    }>;
+  };
 };
 
 type AccountListRow = {
@@ -1779,6 +1788,32 @@ function OrderDetailPage({
     }
   };
 
+  const advanceOrderFromDetail = async () => {
+    if (!order?.nextStage) {
+      setActionState("该采购项目已经到达最后阶段。");
+      return;
+    }
+    setActionState("正在推进订单阶段...");
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "advance",
+          nextStage: order.nextStage,
+          note: `${operatorRole === "director" ? "总监" : "经理"}在订单详情页推进阶段。`,
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "阶段推进失败");
+      setActionState("订单阶段已推进，新阶段文件槽位已生成。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "阶段推进失败");
+    }
+  };
+
   if (loadState === "loading") {
     return <section className="panel order-detail-panel"><h2>正在加载订单详情...</h2></section>;
   }
@@ -1797,6 +1832,9 @@ function OrderDetailPage({
 
   const product = productCatalog.find((item) => item.id === order.productId);
   const currentStage = workflow.find((stage) => stage.stage === order.currentStage);
+  const currentGate = currentStage?.gate;
+  const nextStageNeedsDirector = order.nextStage === "contract" || order.nextStage === "settlement";
+  const canAdvanceByRole = !isBuyer && Boolean(order.nextStage) && (nextStageNeedsDirector ? operatorRole === "director" : operatorRole === "manager");
 
   return (
     <>
@@ -1819,6 +1857,11 @@ function OrderDetailPage({
         </div>
         <div className="card-actions detail-actions">
           <button className="outline-button" type="button" onClick={() => setView("procurement")}>返回履约列表</button>
+          {!isBuyer ? (
+            <button className="primary-button" type="button" onClick={advanceOrderFromDetail} disabled={!canAdvanceByRole}>
+              {order.nextStage ? "推进下一阶段" : "已到最后阶段"}
+            </button>
+          ) : null}
           <button
             className="primary-button"
             type="button"
@@ -1833,6 +1876,18 @@ function OrderDetailPage({
       </section>
 
       {actionState ? <div className="operation-result">{actionState}</div> : null}
+
+      <section className={`stage-gate-panel ${currentGate?.ready ? "ready" : "blocked"}`}>
+        <div>
+          <strong>{currentGate?.ready ? "当前阶段已满足推进条件" : "当前阶段暂不能推进"}</strong>
+          <span>
+            {currentGate?.ready
+              ? "必备单据已通过总监复核或归档。"
+              : `仍需通过复核：${currentGate?.blockedDocuments.join("、") || "必备单据"}`}
+          </span>
+        </div>
+        <StatusPill status={currentGate?.ready ? "可推进" : "资料未齐"} />
+      </section>
 
       <section className="order-detail-layout">
         <article className="panel order-stage-panel">
@@ -1863,7 +1918,8 @@ function OrderDetailPage({
                     <div className="stage-file-tags">
                       {stage.requiredDocuments.map((fileType) => {
                         const matchedDocument = stageDocuments.find((document) => document.documentType === fileType);
-                        return <span key={fileType}>{fileType} · {matchedDocument?.status ?? "待上传"}</span>;
+                        const gateItem = stage.gate.requiredStatuses.find((item) => item.documentType === fileType);
+                        return <span key={fileType}>{fileType} · {gateItem?.status ?? matchedDocument?.status ?? "待上传"}</span>;
                       })}
                     </div>
                     {canUpload ? (

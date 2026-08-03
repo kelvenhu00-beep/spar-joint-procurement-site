@@ -1,4 +1,4 @@
-import { readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -38,4 +38,13 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "drizzle", "0002_accounts_documents_sessions.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0003_procurement_orders_workflow.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0004_order_bound_documents_files.sql")).isFile());
+});
+
+test("order workflow enforces reviewed stage documents", () => {
+  const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
+  const fileRoute = readFileSync(join(root, "app", "api", "files", "route.ts"), "utf8");
+  assert.ok(orderRoute.includes("stageGate"), "missing order stage gate");
+  assert.ok(orderRoute.includes("blockedDocuments"), "missing blocked document response");
+  assert.ok(fileRoute.includes("businessDocuments"), "file review must update business documents");
+  assert.ok(fileRoute.includes("fileUploadId"), "file review must locate linked business document");
 });

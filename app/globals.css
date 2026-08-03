@@ -3879,6 +3879,40 @@ label span {
   align-items: start;
 }
 
+.stage-gate-panel {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-gray-200);
+}
+
+.stage-gate-panel div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.stage-gate-panel strong {
+  color: var(--color-gray-900);
+}
+
+.stage-gate-panel span {
+  color: var(--color-gray-600);
+}
+
+.stage-gate-panel.ready {
+  border-color: var(--color-primary-100);
+  background: var(--color-primary-50);
+}
+
+.stage-gate-panel.blocked {
+  border-color: #fed7aa;
+  background: #fff7ed;
+}
+
 .order-stage-list {
   display: grid;
   gap: var(--space-3);

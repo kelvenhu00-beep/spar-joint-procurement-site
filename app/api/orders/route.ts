@@ -72,6 +72,10 @@ type UpdateOrderPayload = {
   customsDeclarationNo?: string;
 };
 
+type BusinessDocumentRecord = typeof businessDocuments.$inferSelect;
+
+const approvedDocumentStatuses = new Set(["approved", "archived"]);
+
 function orderNo() {
   return `SPAR-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}-${makeId("").replace("_", "").slice(0, 8).toUpperCase()}`;
 }
@@ -86,6 +90,27 @@ function progressOfStage(stage: string) {
   const index = workflowStages.indexOf(stage as WorkflowStage);
   if (index < 0) return 0;
   return Math.round(((index + 1) / workflowStages.length) * 100);
+}
+
+function stageGate(documents: BusinessDocumentRecord[], stage: WorkflowStage) {
+  const label = stageLabels[stage];
+  const requiredDocuments = stageRequiredDocuments[stage] ?? [];
+  const requiredStatuses = requiredDocuments.map((documentType) => {
+    const stageDocuments = documents.filter((document) => document.stage === label && document.documentType === documentType);
+    const approvedDocument = stageDocuments.find((document) => approvedDocumentStatuses.has(document.status));
+    const latestDocument = stageDocuments[0];
+    return {
+      documentType,
+      status: approvedDocument?.status ?? latestDocument?.status ?? "missing",
+      ready: Boolean(approvedDocument),
+    };
+  });
+
+  return {
+    ready: requiredStatuses.every((item) => item.ready),
+    requiredStatuses,
+    blockedDocuments: requiredStatuses.filter((item) => !item.ready).map((item) => item.documentType),
+  };
 }
 
 async function createStageDocuments(params: {
@@ -185,6 +210,7 @@ export async function GET(request: Request) {
           label: stageLabels[stage],
           requiredDocuments: stageRequiredDocuments[stage],
           progress: Math.round(((index + 1) / workflowStages.length) * 100),
+          gate: stageGate(documents, stage),
         })),
         events,
         documents: user.userType === "enterprise_user" ? documents.filter((document) => document.visibility !== "internal") : documents,
@@ -318,6 +344,22 @@ export async function PATCH(request: Request) {
     }
     if (!isApprovalStage && user.role !== "manager") {
       return Response.json({ error: "该履约节点必须由商品运营经理推进。" }, { status: 403 });
+    }
+
+    if (payload.action !== "mark_exception" && payload.action !== "request_changes") {
+      const currentStage = current.currentStage as WorkflowStage;
+      const currentStageDocuments = await db.select().from(businessDocuments).where(eq(businessDocuments.orderId, id)).orderBy(desc(businessDocuments.createdAt));
+      const gate = stageGate(currentStageDocuments, currentStage);
+      if (!gate.ready) {
+        return Response.json(
+          {
+            error: `当前阶段「${stageLabels[currentStage]}」仍有必备单据未通过复核：${gate.blockedDocuments.join("、")}`,
+            blockedDocuments: gate.blockedDocuments,
+            gate,
+          },
+          { status: 409 },
+        );
+      }
     }
 
     const [order] = await db
