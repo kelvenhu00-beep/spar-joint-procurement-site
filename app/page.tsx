@@ -186,6 +186,14 @@ type ProcurementOrderRow = {
   shortageBoxes: number | null;
   sortingBatchNo: string | null;
   allocationStatus: string | null;
+  domesticCarrierName: string | null;
+  domesticDeliveryNo: string | null;
+  dispatchAt: string | null;
+  expectedDeliveryAt: string | null;
+  deliveryRegion: string | null;
+  deliveryWarehouseName: string | null;
+  deliveredBoxes: number | null;
+  deliveryStatus: string | null;
   overseasSupplierName: string | null;
   overseasPoNo: string | null;
   proformaInvoiceNo: string | null;
@@ -1797,6 +1805,16 @@ function OrderDetailPage({
     sortingBatchNo: "",
     allocationStatus: "待分货",
   });
+  const [domesticDeliveryForm, setDomesticDeliveryForm] = useState({
+    domesticCarrierName: "",
+    domesticDeliveryNo: "",
+    dispatchAt: "",
+    expectedDeliveryAt: "",
+    deliveryRegion: "",
+    deliveryWarehouseName: "",
+    deliveredBoxes: "",
+    deliveryStatus: "待出库",
+  });
 
   const loadOrder = () => {
     if (!orderId) {
@@ -1853,6 +1871,16 @@ function OrderDetailPage({
           shortageBoxes: data.order.shortageBoxes === null || data.order.shortageBoxes === undefined ? "0" : String(data.order.shortageBoxes),
           sortingBatchNo: data.order.sortingBatchNo ?? "",
           allocationStatus: data.order.allocationStatus ?? "待分货",
+        });
+        setDomesticDeliveryForm({
+          domesticCarrierName: data.order.domesticCarrierName ?? "",
+          domesticDeliveryNo: data.order.domesticDeliveryNo ?? "",
+          dispatchAt: data.order.dispatchAt ?? "",
+          expectedDeliveryAt: data.order.expectedDeliveryAt ?? "",
+          deliveryRegion: data.order.deliveryRegion ?? "",
+          deliveryWarehouseName: data.order.deliveryWarehouseName ?? "",
+          deliveredBoxes: data.order.deliveredBoxes === null || data.order.deliveredBoxes === undefined ? "" : String(data.order.deliveredBoxes),
+          deliveryStatus: data.order.deliveryStatus ?? "待出库",
         });
         setLoadState("ready");
       })
@@ -2007,6 +2035,30 @@ function OrderDetailPage({
     }
   };
 
+  const saveDomesticDeliveryFields = async () => {
+    if (!order) return;
+    setActionState("正在保存二段配送信息...");
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "request_changes",
+          nextStage: order.currentStage,
+          ...domesticDeliveryForm,
+          note: "经理补充二段配送结构化字段。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "保存失败");
+      setActionState("二段配送信息已保存。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "保存失败");
+    }
+  };
+
   if (loadState === "loading") {
     return <section className="panel order-detail-panel"><h2>正在加载订单详情...</h2></section>;
   }
@@ -2032,6 +2084,7 @@ function OrderDetailPage({
   const canEditShippingFields = !isBuyer && operatorRole === "manager" && order.currentStage === "international_shipping";
   const canEditCustomsFields = !isBuyer && operatorRole === "manager" && order.currentStage === "customs_clearance";
   const canEditWarehouseFields = !isBuyer && operatorRole === "manager" && order.currentStage === "warehouse_sorting";
+  const canEditDomesticDeliveryFields = !isBuyer && operatorRole === "manager" && order.currentStage === "domestic_delivery";
 
   return (
     <>
@@ -2169,6 +2222,29 @@ function OrderDetailPage({
             <label><span>分货状态</span><input value={warehouseForm.allocationStatus} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, allocationStatus: event.target.value })} /></label>
           </div>
           {canEditWarehouseFields ? <button className="primary-button" type="button" onClick={saveWarehouseFields}>保存入库分拣信息</button> : null}
+        </section>
+      ) : null}
+
+      {order.currentStage === "domestic_delivery" ? (
+        <section className="panel overseas-purchase-panel domestic-delivery-panel">
+          <div className="panel-head">
+            <div>
+              <h2>二段配送信息</h2>
+              <p>记录承运商、配送单号、出库日期、预计送达和配送箱数，作为进入签收前的结构化资料。</p>
+            </div>
+            <StatusPill status={order.deliveryStatus ?? "待补充"} />
+          </div>
+          <div className="overseas-form-grid">
+            <label><span>承运商</span><input value={domesticDeliveryForm.domesticCarrierName} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, domesticCarrierName: event.target.value })} /></label>
+            <label><span>配送单号</span><input value={domesticDeliveryForm.domesticDeliveryNo} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, domesticDeliveryNo: event.target.value })} /></label>
+            <label><span>出库日期</span><input type="date" value={domesticDeliveryForm.dispatchAt} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, dispatchAt: event.target.value })} /></label>
+            <label><span>预计送达</span><input type="date" value={domesticDeliveryForm.expectedDeliveryAt} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, expectedDeliveryAt: event.target.value })} /></label>
+            <label><span>配送区域</span><input value={domesticDeliveryForm.deliveryRegion} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, deliveryRegion: event.target.value })} /></label>
+            <label><span>收货仓</span><input value={domesticDeliveryForm.deliveryWarehouseName} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, deliveryWarehouseName: event.target.value })} /></label>
+            <label><span>配送箱数</span><input value={domesticDeliveryForm.deliveredBoxes} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, deliveredBoxes: event.target.value })} /></label>
+            <label><span>配送状态</span><input value={domesticDeliveryForm.deliveryStatus} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, deliveryStatus: event.target.value })} /></label>
+          </div>
+          {canEditDomesticDeliveryFields ? <button className="primary-button" type="button" onClick={saveDomesticDeliveryFields}>保存二段配送信息</button> : null}
         </section>
       ) : null}
 

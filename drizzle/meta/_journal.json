@@ -57,6 +57,13 @@
       "when": 1785747000000,
       "tag": "0007_warehouse_sorting_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1785748800000,
+      "tag": "0008_domestic_delivery_fields",
+      "breakpoints": true
     }
   ]
 }

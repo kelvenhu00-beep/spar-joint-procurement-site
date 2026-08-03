@@ -85,6 +85,14 @@ type UpdateOrderPayload = {
   shortageBoxes?: number | string;
   sortingBatchNo?: string;
   allocationStatus?: string;
+  domesticCarrierName?: string;
+  domesticDeliveryNo?: string;
+  dispatchAt?: string;
+  expectedDeliveryAt?: string;
+  deliveryRegion?: string;
+  deliveryWarehouseName?: string;
+  deliveredBoxes?: number | string;
+  deliveryStatus?: string;
   overseasSupplierName?: string;
   overseasPoNo?: string;
   proformaInvoiceNo?: string;
@@ -211,6 +219,14 @@ export async function GET(request: Request) {
         shortageBoxes: procurementOrders.shortageBoxes,
         sortingBatchNo: procurementOrders.sortingBatchNo,
         allocationStatus: procurementOrders.allocationStatus,
+        domesticCarrierName: procurementOrders.domesticCarrierName,
+        domesticDeliveryNo: procurementOrders.domesticDeliveryNo,
+        dispatchAt: procurementOrders.dispatchAt,
+        expectedDeliveryAt: procurementOrders.expectedDeliveryAt,
+        deliveryRegion: procurementOrders.deliveryRegion,
+        deliveryWarehouseName: procurementOrders.deliveryWarehouseName,
+        deliveredBoxes: procurementOrders.deliveredBoxes,
+        deliveryStatus: procurementOrders.deliveryStatus,
         overseasSupplierName: procurementOrders.overseasSupplierName,
         overseasPoNo: procurementOrders.overseasPoNo,
         proformaInvoiceNo: procurementOrders.proformaInvoiceNo,
@@ -410,6 +426,9 @@ export async function PATCH(request: Request) {
     if (payload.shortageBoxes !== undefined && payload.shortageBoxes !== "" && (!Number.isInteger(Number(payload.shortageBoxes)) || Number(payload.shortageBoxes) < 0)) {
       return badRequest("shortageBoxes must be a non-negative integer");
     }
+    if (payload.deliveredBoxes !== undefined && payload.deliveredBoxes !== "" && (!Number.isInteger(Number(payload.deliveredBoxes)) || Number(payload.deliveredBoxes) < 0)) {
+      return badRequest("deliveredBoxes must be a non-negative integer");
+    }
 
     if (payload.action !== "mark_exception" && payload.action !== "request_changes") {
       const currentStage = current.currentStage as WorkflowStage;
@@ -457,6 +476,14 @@ export async function PATCH(request: Request) {
         shortageBoxes: payload.shortageBoxes === undefined || payload.shortageBoxes === "" ? current.shortageBoxes : Number(payload.shortageBoxes),
         sortingBatchNo: payload.sortingBatchNo?.trim() || current.sortingBatchNo,
         allocationStatus: payload.allocationStatus?.trim() || current.allocationStatus,
+        domesticCarrierName: payload.domesticCarrierName?.trim() || current.domesticCarrierName,
+        domesticDeliveryNo: payload.domesticDeliveryNo?.trim() || current.domesticDeliveryNo,
+        dispatchAt: payload.dispatchAt?.trim() || current.dispatchAt,
+        expectedDeliveryAt: payload.expectedDeliveryAt?.trim() || current.expectedDeliveryAt,
+        deliveryRegion: payload.deliveryRegion?.trim() || current.deliveryRegion,
+        deliveryWarehouseName: payload.deliveryWarehouseName?.trim() || current.deliveryWarehouseName,
+        deliveredBoxes: payload.deliveredBoxes === undefined || payload.deliveredBoxes === "" ? current.deliveredBoxes : Number(payload.deliveredBoxes),
+        deliveryStatus: payload.deliveryStatus?.trim() || current.deliveryStatus,
         overseasSupplierName: payload.overseasSupplierName?.trim() || current.overseasSupplierName,
         overseasPoNo: payload.overseasPoNo?.trim() || current.overseasPoNo,
         proformaInvoiceNo: payload.proformaInvoiceNo?.trim() || current.proformaInvoiceNo,
@@ -499,6 +526,14 @@ export async function PATCH(request: Request) {
         shortageBoxes: payload.shortageBoxes,
         sortingBatchNo: payload.sortingBatchNo,
         allocationStatus: payload.allocationStatus,
+        domesticCarrierName: payload.domesticCarrierName,
+        domesticDeliveryNo: payload.domesticDeliveryNo,
+        dispatchAt: payload.dispatchAt,
+        expectedDeliveryAt: payload.expectedDeliveryAt,
+        deliveryRegion: payload.deliveryRegion,
+        deliveryWarehouseName: payload.deliveryWarehouseName,
+        deliveredBoxes: payload.deliveredBoxes,
+        deliveryStatus: payload.deliveryStatus,
         overseasSupplierName: payload.overseasSupplierName,
         overseasPoNo: payload.overseasPoNo,
         proformaInvoiceNo: payload.proformaInvoiceNo,

@@ -41,6 +41,7 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "drizzle", "0005_overseas_purchase_fields.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0006_customs_clearance_fields.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0007_warehouse_sorting_fields.sql")).isFile());
+  assert.ok(statSync(join(root, "drizzle", "0008_domestic_delivery_fields.sql")).isFile());
 });
 
 test("order workflow enforces reviewed stage documents", () => {
@@ -103,4 +104,15 @@ test("warehouse sorting stage has inbound and allocation fields", () => {
   assert.ok(orderRoute.includes("receivedBoxes must be a non-negative integer"), "warehouse numeric fields must be validated");
   assert.ok(page.includes("warehouse-sorting-panel") && page.includes("saveWarehouseFields"), "order detail must render warehouse sorting form");
   assert.ok(migration.includes("warehouse_inbound_no") && migration.includes("received_boxes") && migration.includes("allocation_status"), "warehouse migration must add inbound and allocation fields");
+});
+
+test("domestic delivery stage has carrier and dispatch fields", () => {
+  const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  const migration = readFileSync(join(root, "drizzle", "0008_domestic_delivery_fields.sql"), "utf8");
+  assert.ok(orderRoute.includes("domestic_delivery: [\"二段配送单\", \"出库单\"]"), "domestic delivery gate must require delivery and outbound documents");
+  assert.ok(orderRoute.includes("domesticCarrierName") && orderRoute.includes("domesticDeliveryNo") && orderRoute.includes("deliveredBoxes"), "orders API must expose domestic delivery fields");
+  assert.ok(orderRoute.includes("deliveredBoxes must be a non-negative integer"), "delivered boxes must be validated");
+  assert.ok(page.includes("domestic-delivery-panel") && page.includes("saveDomesticDeliveryFields"), "order detail must render domestic delivery form");
+  assert.ok(migration.includes("domestic_delivery_no") && migration.includes("dispatch_at") && migration.includes("delivered_boxes"), "domestic delivery migration must add carrier and dispatch fields");
 });
