@@ -1217,6 +1217,18 @@ button:disabled:hover,
   background: var(--color-white);
 }
 
+.pagination .active-page {
+  min-width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--color-white);
+  background: var(--color-primary-700);
+  font-weight: 700;
+}
+
 .progress-title {
   display: flex;
   align-items: flex-start;
@@ -2063,7 +2075,12 @@ label span {
 .filter-panel input,
 .client-actions input,
 .progress-filter-row input,
-.help-search input {
+.help-search input,
+.file-tools select,
+.progress-filter-row select,
+.client-actions select,
+.report-filters select,
+.field-select {
   height: 40px;
   min-width: 0;
   padding: 0 var(--space-3);
@@ -2071,6 +2088,19 @@ label span {
   border-radius: var(--radius-md);
   color: var(--color-gray-900);
   background: var(--color-white);
+}
+
+.file-tools select,
+.progress-filter-row select,
+.client-actions select,
+.report-filters select,
+.field-select {
+  appearance: none;
+  padding-right: var(--space-8);
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-gray-500) 50%), linear-gradient(135deg, var(--color-gray-500) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 17px, calc(100% - 11px) 17px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
 }
 
 .category-strip {
@@ -2247,6 +2277,10 @@ label span {
   gap: var(--space-4);
 }
 
+.catalog-list-mode {
+  grid-template-columns: 1fr;
+}
+
 .catalog-card {
   position: relative;
   min-width: 0;
@@ -2255,6 +2289,22 @@ label span {
   border-radius: var(--radius-lg);
   background: var(--color-white);
   box-shadow: var(--shadow-md);
+}
+
+.catalog-card-list {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) 180px;
+  column-gap: var(--space-5);
+  align-items: center;
+}
+
+.catalog-card-list .catalog-card-actions {
+  align-self: stretch;
+  grid-template-columns: 1fr;
+}
+
+.catalog-card-list h2 {
+  min-height: auto;
 }
 
 .catalog-card .product-image.card {
@@ -2379,6 +2429,11 @@ label span {
 .progress-filter-row input,
 .client-actions input {
   flex: 1;
+}
+
+.progress-filter-row select,
+.client-actions select {
+  min-width: 148px;
 }
 
 .progress-filter-row button:not(.primary-button),
@@ -2732,7 +2787,16 @@ label span {
   flex-wrap: wrap;
 }
 
-.report-filters button {
+.report-filters label {
+  min-width: 160px;
+  display: grid;
+  gap: var(--space-1);
+  color: var(--color-gray-500);
+  font-size: var(--font-caption-size);
+  line-height: var(--font-caption-line);
+}
+
+.report-filters button:not(.primary-button):not(.outline-button) {
   min-width: 160px;
   min-height: 54px !important;
   justify-content: flex-start;
@@ -3336,6 +3400,24 @@ label span {
   color: var(--color-gray-700);
   background: var(--color-white);
   text-align: left;
+}
+
+.faq-list button.active {
+  border-color: rgba(20, 128, 90, 0.28);
+  color: var(--color-primary-800);
+  background: var(--color-primary-50);
+}
+
+.faq-item p {
+  margin: calc(var(--space-2) * -1) 0 var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  color: var(--color-gray-600);
+  font-size: var(--font-body-sm-size);
+  line-height: var(--font-body-sm-line);
+  background: var(--color-white);
 }
 
 .support-card {
@@ -4404,8 +4486,10 @@ label span {
   margin-bottom: var(--space-4);
 }
 
-.upload-fields button {
+.upload-fields span {
   height: 38px;
+  display: flex;
+  align-items: center;
   padding: 0 var(--space-3);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -5109,11 +5193,14 @@ label span {
   .catalog-search,
   .file-tools,
   .file-tools input,
-  .progress-filter-row input,
-  .client-actions input,
-  .report-filters button {
-    width: 100%;
-  }
+	  .progress-filter-row input,
+	  .client-actions input,
+	  .progress-filter-row select,
+	  .client-actions select,
+	  .report-filters label,
+	  .report-filters button {
+	    width: 100%;
+	  }
 
   .stage-file-card,
   .order-stage-card,

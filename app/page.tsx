@@ -800,53 +800,9 @@ function AppShell({
   const navView = activeView === "detail" ? "catalog" : activeView;
   const navItems = portal === "buyer" ? buyerNavItems : operatorNavItems;
   const profile = getProfile(portal, operatorRole);
-  const handleButtonFeedback = (event: React.MouseEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLElement;
-    const button = target.closest("button");
-    if (!button || button.disabled) return;
-    const label = (button.innerText || button.getAttribute("aria-label") || "操作").replace(/\s+/g, " ").trim();
-    if (!label) return;
-
-    if (label.includes("导出")) {
-      const csv = "\uFEFF项目,状态,生成时间\nSPAR联采数据导出,已生成," + new Date().toLocaleString("zh-CN");
-      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `spar-export-${Date.now()}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
-      onOperation(`已执行：${label}，文件已生成。`);
-      return;
-    }
-
-    if (label.includes("下载")) {
-      onOperation(`已执行：${label}。如果该文件已审核，会进入下载；未审核文件会保持锁定。`);
-      return;
-    }
-
-    if (label.includes("筛选") || label.includes("状态") || label.includes("时间") || label.includes("排序") || label.includes("重置")) {
-      onOperation(`已执行：${label}。当前页面筛选条件已响应。`);
-      return;
-    }
-
-    if (label.includes("查看") || label.includes("详情")) {
-      onOperation(`已执行：${label}。`);
-      return;
-    }
-
-    if (label.includes("提交工单")) {
-      onOperation("工单已生成：客服团队将在后台消息中心处理。");
-      return;
-    }
-
-    if (!["退出", "进入采购端", "进入经理端", "进入总监端"].some((text) => label.includes(text))) {
-      onOperation(`已执行：${label}`);
-    }
-  };
 
   return (
-    <div className="app-shell" onClickCapture={handleButtonFeedback}>
+    <div className="app-shell">
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="spar-mark">
@@ -1057,7 +1013,7 @@ function LoginPage({ onLogin }: { onLogin: (user: AuthUser) => void }) {
           <label>
             <input type="checkbox" /> 记住我
           </label>
-          <button type="button">忘记密码?</button>
+          <button type="button" onClick={() => setLoginMessage("请联系平台总监或系统管理员重置密码。")}>忘记密码?</button>
         </div>
         {loginMessage ? <div className="login-message">{loginMessage}</div> : null}
         <button className="primary-button full" type="button" onClick={submitLogin}>
@@ -1257,9 +1213,9 @@ function Dashboard({
           <p>按消费场景组织商品，提升采购效率</p>
         </div>
         <div className="bundle-grid">
-          <Bundle title="欧洲早餐组合" names="Twinings + Walker's + Lavazza" count="共 6 个商品" />
-          <Bundle title="儿童糖果引流组合" names="HARIBO + Manner" count="共 4 个商品" />
-          <Bundle title="进口零食基础组合" names="Ritter Sport + Manner + Walker's" count="共 5 个商品" />
+          <Bundle title="欧洲早餐组合" names="Twinings + Walker's + Lavazza" count="共 6 个商品" onOpen={() => setView("catalog")} />
+          <Bundle title="儿童糖果引流组合" names="HARIBO + Manner" count="共 4 个商品" onOpen={() => setView("catalog")} />
+          <Bundle title="进口零食基础组合" names="Ritter Sport + Manner + Walker's" count="共 5 个商品" onOpen={() => setView("catalog")} />
         </div>
       </section>
     </>
@@ -1316,6 +1272,52 @@ function Catalog({
   });
   const [operationMessage, setOperationMessage] = useState("");
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [activeCategory, setActiveCategory] = useState("全部商品");
+  const [activeCountry, setActiveCountry] = useState("全部");
+  const [activeBrand, setActiveBrand] = useState("全部");
+  const [brandSearch, setBrandSearch] = useState("");
+  const [costMin, setCostMin] = useState("");
+  const [costMax, setCostMax] = useState("");
+  const [sortMode, setSortMode] = useState<"default" | "progress" | "costAsc" | "volume">("default");
+  const [layoutMode, setLayoutMode] = useState<"grid" | "list">("grid");
+  const brands = useMemo(() => {
+    const uniqueBrands = Array.from(new Set(visibleProducts.map((product) => product.brand))).sort((a, b) => a.localeCompare(b, "zh-CN"));
+    return ["全部", ...uniqueBrands];
+  }, [visibleProducts]);
+  const filteredBrands = brands.filter((brand) => brand === "全部" || brand.toLowerCase().includes(brandSearch.trim().toLowerCase()));
+  const filteredProducts = useMemo(() => {
+    const keyword = searchText.trim().toLowerCase();
+    const min = costMin.trim() === "" ? null : Number(costMin);
+    const max = costMax.trim() === "" ? null : Number(costMax);
+    const nextProducts = visibleProducts.filter((product) => {
+      const estimatedCost = Number(product.price.replace(/[^\d.]/g, ""));
+      const matchesKeyword = !keyword || [product.cnName, product.brand, product.enName, product.country, product.category].some((value) => value.toLowerCase().includes(keyword));
+      const matchesCategory = activeCategory === "全部商品" || product.category === activeCategory;
+      const matchesCountry = activeCountry === "全部" || product.country === activeCountry;
+      const matchesBrand = activeBrand === "全部" || product.brand === activeBrand;
+      const matchesMin = min === null || (Number.isFinite(min) && estimatedCost >= min);
+      const matchesMax = max === null || (Number.isFinite(max) && estimatedCost <= max);
+      return matchesKeyword && matchesCategory && matchesCountry && matchesBrand && matchesMin && matchesMax;
+    });
+    return nextProducts.sort((a, b) => {
+      if (sortMode === "progress") return progressOf(b) - progressOf(a);
+      if (sortMode === "costAsc") return Number(a.price.replace(/[^\d.]/g, "")) - Number(b.price.replace(/[^\d.]/g, ""));
+      if (sortMode === "volume") return b.last12MonthBoxes - a.last12MonthBoxes;
+      return a.cnName.localeCompare(b.cnName, "zh-CN");
+    });
+  }, [activeBrand, activeCategory, activeCountry, costMax, costMin, searchText, sortMode, visibleProducts]);
+
+  const clearCatalogFilters = () => {
+    setSearchText("");
+    setActiveCategory("全部商品");
+    setActiveCountry("全部");
+    setActiveBrand("全部");
+    setBrandSearch("");
+    setCostMin("");
+    setCostMax("");
+    setSortMode("default");
+  };
 
   const createProduct = async () => {
     setOperationMessage("正在提交商品资料...");
@@ -1441,8 +1443,8 @@ function Catalog({
       <section className="catalog-toolbar">
         <h1>{isBuyer ? "商品目录" : "商品资料库"}</h1>
         <div className="catalog-search">
-          <input placeholder="请输入商品名称、品牌或关键词" />
-          <button className="primary-button" type="button">
+          <input placeholder="请输入商品名称、品牌或关键词" value={searchText} onChange={(event) => setSearchText(event.target.value)} />
+          <button className="primary-button" type="button" onClick={() => setOperationMessage(`已筛选出 ${filteredProducts.length} 个商品。`)}>
             搜索
           </button>
         </div>
@@ -1493,54 +1495,69 @@ function Catalog({
       ) : null}
 
       <section className="category-strip">
-        {catalogCategories.map((category, index) => (
-          <button key={category} className={index === 0 ? "active" : ""} type="button">
+        {catalogCategories.filter((category) => category !== "更多⌄").map((category) => (
+          <button key={category} className={activeCategory === category ? "active" : ""} type="button" onClick={() => setActiveCategory(category)}>
             {category}
           </button>
         ))}
-        <button type="button">清空筛选</button>
+        <button type="button" onClick={clearCatalogFilters}>清空筛选</button>
       </section>
 
       <section className="catalog-layout">
         <aside className="filter-panel">
           <div className="filter-head">
             <h2>筛选条件</h2>
-            <button type="button">重置</button>
+            <button type="button" onClick={clearCatalogFilters}>重置</button>
           </div>
-          <FilterGroup title="原产国/地区" items={["全部", "德国", "奥地利", "英国", "意大利"]} />
-          <FilterGroup title="品牌" items={["全部", "HARIBO", "Manner", "Walker's", "Twinings", "Ritter Sport"]} hasSearch />
+          <FilterGroup title="原产国/地区" items={["全部", "德国", "奥地利", "英国", "意大利"]} selected={activeCountry} onSelect={setActiveCountry} />
+          <FilterGroup title="品牌" items={filteredBrands} selected={activeBrand} onSelect={setActiveBrand} hasSearch searchValue={brandSearch} onSearchChange={setBrandSearch} />
           <div className="filter-block">
             <h3>预估到仓成本区间 (¥/箱)</h3>
             <div className="price-filter">
-              <input placeholder="最低价" />
+              <input placeholder="最低价" value={costMin} onChange={(event) => setCostMin(event.target.value)} inputMode="decimal" />
               <span>-</span>
-              <input placeholder="最高价" />
-              <button type="button">确定</button>
+              <input placeholder="最高价" value={costMax} onChange={(event) => setCostMax(event.target.value)} inputMode="decimal" />
+              <button type="button" onClick={() => setOperationMessage(`成本区间已应用，共 ${filteredProducts.length} 个商品。`)}>确定</button>
             </div>
           </div>
-          <FilterGroup title="MOQ (箱)" items={["全部", "≤ 10 箱", "11-20 箱", "21-50 箱", "> 50 箱"]} />
+          <div className="filter-block">
+            <h3>排序</h3>
+            <div className="check-list">
+              {[
+                ["default", "默认排序"],
+                ["progress", "成团进度高优先"],
+                ["costAsc", "到仓成本低优先"],
+                ["volume", "过去12个月采购量高优先"],
+              ].map(([value, label]) => (
+                <label key={value}>
+                  <input type="radio" name="catalog-sort" checked={sortMode === value} onChange={() => setSortMode(value as typeof sortMode)} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
         </aside>
 
         <section className="catalog-main">
           <div className="catalog-main-head">
-            <span>共 {visibleProducts.length} 个商品</span>
+            <span>共 {filteredProducts.length} 个商品</span>
             <div>
               <span>排序:</span>
-              <button className="field-button compact" type="button">
-                默认排序⌄
+              <button className="field-button compact" type="button" onClick={() => setSortMode(sortMode === "default" ? "progress" : "default")}>
+                {sortMode === "progress" ? "成团进度" : sortMode === "costAsc" ? "成本升序" : sortMode === "volume" ? "历史采购量" : "默认排序"}⌄
               </button>
-              <button className="primary-button" type="button">
+              <button className={layoutMode === "grid" ? "primary-button" : "outline-button"} type="button" onClick={() => setLayoutMode("grid")}>
                 ▦ 网格
               </button>
-              <button className="outline-button" type="button">
+              <button className={layoutMode === "list" ? "primary-button" : "outline-button"} type="button" onClick={() => setLayoutMode("list")}>
                 列表
               </button>
             </div>
           </div>
 
-          <div className="catalog-grid">
-            {visibleProducts.map((product) => (
-              <article className="catalog-card" key={product.id}>
+          <div className={`catalog-grid ${layoutMode === "list" ? "catalog-list-mode" : ""}`}>
+            {filteredProducts.map((product) => (
+              <article className={`catalog-card ${layoutMode === "list" ? "catalog-card-list" : ""}`} key={product.id}>
                 <ProductImage product={product} />
                 <TagRow tags={[product.country, product.category]} />
                 <h2>{product.cnName}</h2>
@@ -1581,19 +1598,13 @@ function Catalog({
                 </div>
               </article>
             ))}
+            {filteredProducts.length === 0 ? <div className="table-state">没有符合条件的商品，请调整搜索或筛选条件。</div> : null}
           </div>
 
           <footer className="pagination">
-            <span>‹</span>
-            <button className="active" type="button">1</button>
-            <button type="button">2</button>
-            <button type="button">3</button>
-            <button type="button">4</button>
-            <button type="button">5</button>
-            <span>…</span>
-            <button type="button">63</button>
-            <span>›</span>
-            <span className="jump-page">跳至 1 页</span>
+            <span>当前为前端实时筛选结果</span>
+            <span className="active-page">1</span>
+            <span className="jump-page">{filteredProducts.length} / {visibleProducts.length}</span>
           </footer>
         </section>
       </section>
@@ -1601,20 +1612,35 @@ function Catalog({
   );
 }
 
-function FilterGroup({ title, items, hasSearch = false }: { title: string; items: string[]; hasSearch?: boolean }) {
+function FilterGroup({
+  title,
+  items,
+  selected,
+  onSelect,
+  hasSearch = false,
+  searchValue = "",
+  onSearchChange,
+}: {
+  title: string;
+  items: string[];
+  selected: string;
+  onSelect: (item: string) => void;
+  hasSearch?: boolean;
+  searchValue?: string;
+  onSearchChange?: (value: string) => void;
+}) {
   return (
     <div className="filter-block">
       <h3>{title}</h3>
-      {hasSearch ? <input className="filter-search" placeholder="搜索品牌" /> : null}
+      {hasSearch ? <input className="filter-search" placeholder="搜索品牌" value={searchValue} onChange={(event) => onSearchChange?.(event.target.value)} /> : null}
       <div className="check-list">
-        {items.map((item, index) => (
+        {items.map((item) => (
           <label key={item}>
-            <input type="checkbox" defaultChecked={index === 0} />
+            <input type="radio" name={title} checked={selected === item} onChange={() => onSelect(item)} />
             {item}
           </label>
         ))}
       </div>
-      {items.length > 5 ? <button type="button">展开更多⌄</button> : null}
     </div>
   );
 }
@@ -1638,6 +1664,9 @@ function ProcurementProgress({
   const [orders, setOrders] = useState<ProcurementOrderRow[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [actionState, setActionState] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("全部状态");
+  const [stageFilter, setStageFilter] = useState("全部阶段");
 
   const loadOrders = () => {
     setLoadState("loading");
@@ -1652,7 +1681,7 @@ function ProcurementProgress({
   };
 
   useEffect(() => {
-    loadOrders();
+    void Promise.resolve().then(loadOrders);
   }, []);
 
   const createOrderFromConfirmedIntention = async () => {
@@ -1711,6 +1740,13 @@ function ProcurementProgress({
   const doneCount = orders.filter((order) => order.status === "settlement").length;
   const exceptionCount = orders.filter((order) => order.status === "exception").length;
   const averageProgress = orders.length ? Math.round(orders.reduce((sum, order) => sum + order.progress, 0) / orders.length) : 0;
+  const filteredOrders = orders.filter((order) => {
+    const keyword = searchText.trim().toLowerCase();
+    const matchesKeyword = !keyword || [order.orderNo, order.productName ?? order.productId, order.enterpriseName ?? order.enterpriseId, order.containerNo ?? "", order.receivingRegion].some((value) => value.toLowerCase().includes(keyword));
+    const matchesStatus = statusFilter === "全部状态" || order.status === statusFilter;
+    const matchesStage = stageFilter === "全部阶段" || order.currentStage === stageFilter;
+    return matchesKeyword && matchesStatus && matchesStage;
+  });
 
   return (
     <>
@@ -1727,15 +1763,17 @@ function ProcurementProgress({
         <MetricCard icon="!" label="异常项目" value={loadState === "ready" ? String(exceptionCount) : "-"} hint="异常状态项目" />
       </section>
       <section className="progress-tabs">
-        <button className="active" type="button">项目总览</button>
+        <button className="active" type="button" disabled>项目总览</button>
         <button type="button" onClick={() => setView("progress")}>柜号视图</button>
-        <button type="button">时间线视图</button>
       </section>
       <section className="progress-filter-row">
-        <input placeholder="搜索项目名称 / 柜号 / 供应商" />
-        <button type="button">全部状态⌄</button>
-        <button type="button">全部阶段⌄</button>
-        <button type="button">起始日期 - 结束日期</button>
+        <input placeholder="搜索项目名称 / 柜号 / 供应商" value={searchText} onChange={(event) => setSearchText(event.target.value)} />
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          {["全部状态", ...Array.from(new Set(orders.map((order) => order.status)))].map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+        <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
+          {["全部阶段", ...Array.from(new Set(orders.map((order) => order.currentStage)))].map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+        </select>
         <button type="button" onClick={loadOrders}>刷新</button>
         {!isBuyer && operatorRole === "manager" ? <button className="primary-button" type="button" onClick={createOrderFromConfirmedIntention}>从已确认意向生成采购项目</button> : null}
       </section>
@@ -1754,7 +1792,8 @@ function ProcurementProgress({
             {loadState === "loading" ? <div className="table-state" aria-live="polite">正在加载真实采购项目...</div> : null}
             {loadState === "error" ? <div className="table-state error">采购项目加载失败，请检查登录状态和数据库。</div> : null}
             {loadState === "ready" && orders.length === 0 ? <div className="table-state">暂无真实采购项目。先提交采购意向，由总监审批通过后，经理可在本页生成采购项目。</div> : null}
-            {orders.map((order) => (
+            {loadState === "ready" && orders.length > 0 && filteredOrders.length === 0 ? <div className="table-state">没有符合筛选条件的采购项目。</div> : null}
+            {filteredOrders.map((order) => (
               <ProcurementRow
                 key={order.id}
                 order={order}
@@ -1773,7 +1812,7 @@ function ProcurementProgress({
               />
             ))}
           </div>
-          <footer className="table-footer">共 {orders.length} 条 <span>‹</span><b>1</b><span>›</span><button type="button">10 条/页⌄</button></footer>
+          <footer className="table-footer">共 {filteredOrders.length} 条 <b>当前筛选结果</b></footer>
         </div>
         <aside className="procurement-side">
           <section className="panel stage-card">
@@ -2021,7 +2060,7 @@ function OrderDetailPage({
   };
 
   useEffect(() => {
-    loadOrder();
+    void Promise.resolve().then(loadOrder);
   }, [orderId]);
 
   const reviewFile = async (id: string, action: "ai_pass" | "ai_warning" | "approve" | "request_changes" | "reject") => {
@@ -2589,6 +2628,9 @@ function IntentionAdminPage({
   const [rows, setRows] = useState<PurchaseIntentionRow[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [actionState, setActionState] = useState("");
+  const [searchText, setSearchText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("全部状态");
+  const [arrivalFilter, setArrivalFilter] = useState("全部窗口");
 
   const loadIntentions = () => {
     setLoadState("loading");
@@ -2608,7 +2650,7 @@ function IntentionAdminPage({
   };
 
   useEffect(() => {
-    loadIntentions();
+    void Promise.resolve().then(loadIntentions);
   }, []);
 
   const reviewIntention = async (id: string, action: "submit_for_director" | "approve" | "request_changes" | "reject") => {
@@ -2635,6 +2677,13 @@ function IntentionAdminPage({
 
   const pendingCount = rows.filter((row) => row.status === "submitted").length;
   const reviewableCount = rows.filter((row) => row.quantityBoxes >= 120).length;
+  const filteredRows = rows.filter((row) => {
+    const keyword = searchText.trim().toLowerCase();
+    const matchesKeyword = !keyword || [row.enterpriseName ?? row.enterpriseId, row.productName ?? row.productId, row.receivingRegion].some((value) => value.toLowerCase().includes(keyword));
+    const matchesStatus = statusFilter === "全部状态" || row.status === statusFilter;
+    const matchesArrival = arrivalFilter === "全部窗口" || row.expectedArrivalWindow === arrivalFilter;
+    return matchesKeyword && matchesStatus && matchesArrival;
+  });
 
   return (
     <>
@@ -2646,12 +2695,14 @@ function IntentionAdminPage({
         <MetricCard icon="♙" label="可二次确认" value={loadState === "ready" ? String(reviewableCount) : "-"} hint="按已提交意向初步判断" />
       </section>
       <section className="progress-filter-row">
-        <input placeholder="搜索企业、商品、区域仓" />
-        <button type="button">全部状态⌄</button>
-        <button type="button">商品国家⌄</button>
-        <button type="button">到货窗口⌄</button>
+        <input placeholder="搜索企业、商品、区域仓" value={searchText} onChange={(event) => setSearchText(event.target.value)} />
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          {["全部状态", "submitted", "director_review", "confirmed", "changes_requested", "rejected", "order_created"].map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+        <select value={arrivalFilter} onChange={(event) => setArrivalFilter(event.target.value)}>
+          {["全部窗口", ...Array.from(new Set(rows.map((row) => row.expectedArrivalWindow)))].map((windowLabel) => <option key={windowLabel} value={windowLabel}>{windowLabel}</option>)}
+        </select>
         <button type="button" onClick={loadIntentions}>刷新</button>
-        <button className="primary-button" type="button" onClick={() => rows[0] ? reviewIntention(rows[0].id, isDirector ? "approve" : "submit_for_director") : setActionState("没有可处理的采购意向。")}>{isDirector ? "批准第一条意向" : "提交第一条给总监"}</button>
       </section>
       {actionState ? <div className="operation-result">{actionState}</div> : null}
       <section className="approval-gate-strip">
@@ -2670,7 +2721,8 @@ function IntentionAdminPage({
             {loadState === "loading" ? <div className="table-state" aria-live="polite">正在加载真实采购意向...</div> : null}
             {loadState === "error" ? <div className="table-state error">采购意向加载失败，请检查数据库和 API。</div> : null}
             {loadState === "ready" && rows.length === 0 ? <div className="table-state">暂无企业采购意向。</div> : null}
-            {rows.flatMap((row) => (
+            {loadState === "ready" && rows.length > 0 && filteredRows.length === 0 ? <div className="table-state">没有符合筛选条件的采购意向。</div> : null}
+            {filteredRows.flatMap((row) => (
               [
                 row.enterpriseName ?? row.enterpriseId,
                 row.productName ?? row.productId,
@@ -2734,17 +2786,19 @@ function IntentionAdminPage({
 
 function FileCenterPage({
   portal,
+  productCatalog,
   setView,
   setSelectedId,
 }: {
   portal: Portal;
+  productCatalog: Product[];
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
   const isBuyer = portal === "buyer";
-  const files = isBuyer ? buyerFileItems : operatorFileItems;
   const [documents, setDocuments] = useState<BusinessDocumentRow[]>([]);
   const [documentState, setDocumentState] = useState<"loading" | "ready" | "error">("loading");
+  const [searchText, setSearchText] = useState("");
 
   const loadDocuments = () => {
     setDocumentState("loading");
@@ -2759,20 +2813,24 @@ function FileCenterPage({
   };
 
   useEffect(() => {
-    loadDocuments();
+    void Promise.resolve().then(loadDocuments);
   }, []);
+  const visibleDocuments = documents.filter((document) => {
+    const keyword = searchText.trim().toLowerCase();
+    return !keyword || [document.title, document.documentNo, document.documentType, document.stage, document.productName ?? "", document.enterpriseName ?? ""].some((value) => value.toLowerCase().includes(keyword));
+  });
   const metrics = isBuyer
     ? [
-        ["可下载文件", "18", "商品资料、意向、合同、付款、签收"],
-        ["待确认文件", "3", "二次确认和最终报价"],
-        ["待处理节点", "2", "付款证明、收货异常照片"],
-        ["历史归档", "42", "按订单和商品归档"],
+        ["可下载文件", String(documents.filter((document) => document.status === "approved" || document.status === "archived").length), "已通过审核的本企业文件"],
+        ["待确认文件", String(documents.filter((document) => document.status === "reviewing" || document.status === "ai_review").length), "二次确认、合同和付款文件"],
+        ["待处理节点", String(documents.filter((document) => document.status === "changes_requested").length), "需补充或修正的文件"],
+        ["历史归档", String(documents.filter((document) => document.status === "archived").length), "按订单和商品归档"],
       ]
     : [
-        ["缺失节点", "31", "分散在商品流程中处理"],
-        ["AI 初审中", "24", "等待字段抽取和一致性检查"],
-        ["待人工复核", "16", "商品、关务、财务、法务分工"],
-        ["已归档文件", "128", "按商品、订单、柜号归档"],
+        ["单据总数", String(documents.length), "真实业务单据台账"],
+        ["AI 初审中", String(documents.filter((document) => document.status === "ai_review").length), "等待字段抽取和一致性检查"],
+        ["待人工复核", String(documents.filter((document) => document.status === "reviewing").length), "商品、关务、财务、法务分工"],
+        ["已归档文件", String(documents.filter((document) => document.status === "archived").length), "按商品、订单、柜号归档"],
       ];
 
   return (
@@ -2806,7 +2864,7 @@ function FileCenterPage({
               <p>{isBuyer ? "只显示本企业可见单据" : "真实单据记录，文件上传后会自动形成单据台账"}</p>
             </div>
             <div className="file-tools">
-              <input placeholder="搜索商品、阶段、订单号" />
+              <input placeholder="搜索商品、阶段、订单号" value={searchText} onChange={(event) => setSearchText(event.target.value)} />
               <button className="outline-button" type="button" onClick={loadDocuments}>刷新</button>
             </div>
           </div>
@@ -2814,7 +2872,8 @@ function FileCenterPage({
             {documentState === "loading" ? <div className="table-state">正在加载真实单据...</div> : null}
             {documentState === "error" ? <div className="table-state error">单据加载失败，请确认账号权限。</div> : null}
             {documentState === "ready" && documents.length === 0 ? <div className="table-state">暂无业务单据。后台上传文件或生成合同后会出现在这里。</div> : null}
-            {documents.map((document) => (
+            {documentState === "ready" && documents.length > 0 && visibleDocuments.length === 0 ? <div className="table-state">没有符合搜索条件的业务单据。</div> : null}
+            {visibleDocuments.map((document) => (
               <article className="business-document-row" key={document.id}>
                 <div>
                   <strong>{document.title}</strong>
@@ -2836,59 +2895,6 @@ function FileCenterPage({
               </article>
             ))}
           </div>
-          <div className="file-list">
-            {(isBuyer ? files : products.slice(0, 6).map((product, index) => {
-              const stage = productFlowFiles[index % productFlowFiles.length];
-              return [stage.stage, product.cnName, stage.status, stage.files.join("、")];
-            })).map((file, index) => (
-              <article className="file-row" key={`${file[0]}-${file[1]}`}>
-                <div className="file-main">
-                  <span className="file-type-icon">▦</span>
-                  <div>
-                    <h3>{isBuyer ? file[0] : `${file[1]} · ${file[0]}`}</h3>
-                    <p>{file[1]}</p>
-                    <small>{isBuyer ? file[3] : `该节点文件：${file[3]}`}</small>
-                  </div>
-                </div>
-                <StatusPill status={file[2]} />
-                <div className="file-actions">
-                  {isBuyer ? (
-                    <>
-                      <button className="outline-button" type="button" disabled={!canDownloadStatus(file[2])}>
-                        下载
-                      </button>
-                      <button className="soft-button" type="button">
-                        查看
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        className="outline-button"
-                        type="button"
-                        onClick={() => {
-                          setSelectedId(products[index % products.length].id);
-                          setView("detail");
-                        }}
-                      >
-                        打开商品页
-                      </button>
-                      <button
-                        className="primary-button"
-                        type="button"
-                        onClick={() => {
-                          setSelectedId(products[index % products.length].id);
-                          setView(file[2] === "AI初审中" || file[2] === "需补正" ? "aiReview" : "detail");
-                        }}
-                      >
-                        {file[2] === "已归档" ? "查看归档" : "按节点处理"}
-                      </button>
-                    </>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
         </article>
 
         <aside className="document-side">
@@ -2904,7 +2910,7 @@ function FileCenterPage({
               className="primary-button full"
               type="button"
               onClick={() => {
-                setSelectedId(products[0].id);
+                setSelectedId(productCatalog[0]?.id ?? products[0].id);
                 setView("detail");
               }}
             >
@@ -2938,6 +2944,8 @@ function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; s
   const [uploads, setUploads] = useState<FileUploadRow[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [actionState, setActionState] = useState("");
+  const [riskFilter, setRiskFilter] = useState("全部风险");
+  const [reviewStatusFilter, setReviewStatusFilter] = useState("全部复核状态");
 
   const loadUploads = () => {
     setLoadState("loading");
@@ -2952,7 +2960,7 @@ function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; s
   };
 
   useEffect(() => {
-    loadUploads();
+    void Promise.resolve().then(loadUploads);
   }, []);
 
   const reviewFile = async (id: string, action: "ai_pass" | "ai_warning" | "approve" | "request_changes" | "reject") => {
@@ -2976,6 +2984,12 @@ function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; s
       setActionState(error instanceof Error ? error.message : "文件审核失败");
     }
   };
+  const filteredUploads = uploads.filter((item) => {
+    const risk = item.aiReviewStatus === "warning" ? "高风险" : "待核验";
+    const matchesRisk = riskFilter === "全部风险" || riskFilter === risk;
+    const matchesStatus = reviewStatusFilter === "全部复核状态" || item.manualReviewStatus === reviewStatusFilter;
+    return matchesRisk && matchesStatus;
+  });
 
   return (
     <>
@@ -2996,8 +3010,12 @@ function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; s
               <p>AI 只做初步审核，最终以人工复核为准</p>
             </div>
             <div className="file-tools">
-              <button className="outline-button" type="button">风险等级⌄</button>
-              <button className="outline-button" type="button">责任岗位⌄</button>
+              <select value={riskFilter} onChange={(event) => setRiskFilter(event.target.value)}>
+                {["全部风险", "高风险", "待核验"].map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+              <select value={reviewStatusFilter} onChange={(event) => setReviewStatusFilter(event.target.value)}>
+                {["全部复核状态", ...Array.from(new Set(uploads.map((item) => item.manualReviewStatus)))].map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
               <button className="primary-button" type="button" onClick={loadUploads}>刷新队列</button>
             </div>
           </div>
@@ -3005,7 +3023,8 @@ function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; s
             {loadState === "loading" ? <div className="table-state" aria-live="polite">正在加载真实上传文件...</div> : null}
             {loadState === "error" ? <div className="table-state error">文件队列加载失败。</div> : null}
             {loadState === "ready" && uploads.length === 0 ? <div className="table-state">暂无上传文件。请先进入商品详情页的流程节点上传。</div> : null}
-            {uploads.map((item) => (
+            {loadState === "ready" && uploads.length > 0 && filteredUploads.length === 0 ? <div className="table-state">没有符合筛选条件的上传文件。</div> : null}
+            {filteredUploads.map((item) => (
               <article className="review-card" key={item.id}>
                 <div className="review-head">
                   <div>
@@ -3075,14 +3094,17 @@ function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; s
 
 function ProgressBoard({
   portal,
+  productCatalog,
   setView,
   setSelectedId,
 }: {
   portal: Portal;
+  productCatalog: Product[];
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
-  const ordered = [...products].sort((a, b) => progressOf(b) - progressOf(a));
+  const visibleProducts = portal === "buyer" ? productCatalog.filter((product) => product.status === "approved") : productCatalog;
+  const ordered = [...visibleProducts].sort((a, b) => progressOf(b) - progressOf(a));
   const isBuyer = portal === "buyer";
 
   return (
@@ -3131,6 +3153,7 @@ function ProgressBoard({
               </article>
             );
           })}
+          {ordered.length === 0 ? <div className="table-state">暂无可显示的真实成团商品。</div> : null}
         </div>
       </section>
     </>
@@ -3138,24 +3161,51 @@ function ProgressBoard({
 }
 
 function ReportsPage() {
+  const [period, setPeriod] = useState("2026-05");
+  const [comparison, setComparison] = useState("环比");
+  const [category, setCategory] = useState("全部类别");
+  const [brand, setBrand] = useState("全部品牌");
+  const [country, setCountry] = useState("全部国家");
+  const reportMetrics = [
+    ["采购金额", "¥ 2,450,890.60", "较上月 ↑ 18.6%"],
+    ["订单数", "312", "较上月 ↑ 12.4%"],
+    ["成团数", "68", "较上月 ↑ 25.9%"],
+    ["商品数", "1,245", "较上月 ↑ 8.3%"],
+    ["客单价", "¥ 7,852.21", "较上月 ↑ 5.7%"],
+  ];
+  const exportReport = () => {
+    const lines = [
+      ["报表期间", period],
+      ["对比维度", comparison],
+      ["商品类别", category],
+      ["品牌", brand],
+      ["国家/地区", country],
+      [],
+      ["指标", "数值", "变化"],
+      ...reportMetrics,
+    ];
+    const csv = `\uFEFF${lines.map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll("\"", "\"\"")}"`).join(",")).join("\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `spar-report-${period}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
   return (
     <>
       <PageTitle title="数据报表" subtitle="多维度数据分析，助力业务决策" />
       <section className="report-filters">
-        <button type="button">时间范围<br /><strong>2026-05-01 ~ 2026-05-31</strong></button>
-        <button type="button">对比维度<br /><strong>环比⌄</strong></button>
-        <button type="button">商品类别<br /><strong>全部类别⌄</strong></button>
-        <button type="button">品牌<br /><strong>全部品牌⌄</strong></button>
-        <button type="button">国家/地区<br /><strong>全部国家⌄</strong></button>
-        <button className="outline-button" type="button">重置</button>
-        <button className="primary-button" type="button">导出报表</button>
+        <label>时间范围<select value={period} onChange={(event) => setPeriod(event.target.value)}>{["2026-05", "2026-06", "2026-07", "2026-08"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label>对比维度<select value={comparison} onChange={(event) => setComparison(event.target.value)}>{["环比", "同比"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label>商品类别<select value={category} onChange={(event) => setCategory(event.target.value)}>{["全部类别", "糖果", "饼干", "饮料", "调味品"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label>品牌<select value={brand} onChange={(event) => setBrand(event.target.value)}>{["全部品牌", "HARIBO", "Manner", "Walker's", "Twinings", "Ritter Sport"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label>国家/地区<select value={country} onChange={(event) => setCountry(event.target.value)}>{["全部国家", "德国", "奥地利", "英国", "意大利"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <button className="outline-button" type="button" onClick={() => { setPeriod("2026-05"); setComparison("环比"); setCategory("全部类别"); setBrand("全部品牌"); setCountry("全部国家"); }}>重置</button>
+        <button className="primary-button" type="button" onClick={exportReport}>导出报表</button>
       </section>
       <section className="metric-strip report-metrics">
-        <ReportMetric label="采购金额" value="¥ 2,450,890.60" change="较上月 ↑ 18.6%" />
-        <ReportMetric label="订单数" value="312" change="较上月 ↑ 12.4%" />
-        <ReportMetric label="成团数" value="68" change="较上月 ↑ 25.9%" />
-        <ReportMetric label="商品数" value="1,245" change="较上月 ↑ 8.3%" />
-        <ReportMetric label="客单价" value="¥ 7,852.21" change="较上月 ↑ 5.7%" />
+        {reportMetrics.map(([label, value, change]) => <ReportMetric key={label} label={label} value={value} change={change} />)}
       </section>
       <section className="report-grid">
         <article className="panel line-panel">
@@ -3224,6 +3274,9 @@ function ClientsPage() {
   const [enterpriseUsers, setEnterpriseUsers] = useState<AccountListRow[]>([]);
   const [operatorUsers, setOperatorUsers] = useState<AccountListRow[]>([]);
   const [accountState, setAccountState] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientStatus, setClientStatus] = useState("全部状态");
+  const [clientRegion, setClientRegion] = useState("全部地区");
   const [newAccount, setNewAccount] = useState({
     name: "",
     email: "",
@@ -3303,6 +3356,23 @@ function ClientsPage() {
     ["四川舞东风超市连锁股份有限公司", "西南区域社区零售", "跟进中", "★★★☆☆", "采购经理", "待补充", "¥ 980,000", "2026-04-28"],
     ["重庆重客隆超市连锁有限责任公司", "重庆区域连锁超市", "待评估", "★★☆☆☆", "商品经理", "待补充", "¥ 670,000", "2026-04-15"],
   ];
+  const filteredClients = clients.filter((client) => {
+    const keyword = clientSearch.trim().toLowerCase();
+    const matchesKeyword = !keyword || [client[0], client[1], client[4]].some((value) => value.toLowerCase().includes(keyword));
+    const matchesStatus = clientStatus === "全部状态" || client[2] === clientStatus;
+    const matchesRegion = clientRegion === "全部地区" || client[1].includes(clientRegion);
+    return matchesKeyword && matchesStatus && matchesRegion;
+  });
+  const exportClients = () => {
+    const lines = [["客户名称", "类型", "状态", "合作等级", "联系人", "联系方式", "合作金额", "最后订单时间"], ...filteredClients];
+    const csv = `\uFEFF${lines.map((row) => row.map((cell) => `"${String(cell).replaceAll("\"", "\"\"")}"`).join(",")).join("\n")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `spar-clients-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
   return (
     <>
       <PageTitle title="企业客户" subtitle="管理和维护企业客户信息，建立长期合作关系" />
@@ -3354,26 +3424,27 @@ function ClientsPage() {
         <MetricCard icon="▥" label="订单总数（本年）" value="2,346" hint="较去年 +15.3% ↑" />
       </section>
       <section className="client-actions">
-        <input placeholder="搜索客户名称、联系人、电话" />
-        <button type="button">客户状态⌄</button>
-        <button type="button">合作等级⌄</button>
-        <button type="button">所在地区⌄</button>
-        <button type="button">更多筛选⌄</button>
-        <button className="plain-link" type="button">重置</button>
-        <button className="outline-button" type="button">导出数据</button>
-        <button className="primary-button" type="button">+ 新增客户</button>
+        <input placeholder="搜索客户名称、联系人、电话" value={clientSearch} onChange={(event) => setClientSearch(event.target.value)} />
+        <select value={clientStatus} onChange={(event) => setClientStatus(event.target.value)}>
+          {["全部状态", "合作中", "潜在客户", "跟进中", "待评估"].map((status) => <option key={status} value={status}>{status}</option>)}
+        </select>
+        <select value={clientRegion} onChange={(event) => setClientRegion(event.target.value)}>
+          {["全部地区", "华南", "山东", "湖南", "福建", "安徽", "西南", "重庆"].map((region) => <option key={region} value={region}>{region}</option>)}
+        </select>
+        <button className="plain-link" type="button" onClick={() => { setClientSearch(""); setClientStatus("全部状态"); setClientRegion("全部地区"); }}>重置</button>
+        <button className="outline-button" type="button" onClick={exportClients}>导出数据</button>
       </section>
       <section className="clients-layout">
         <article className="panel client-table">
           <div className="data-table clients">
             <div>客户名称</div><div>客户状态</div><div>合作等级</div><div>联系人</div><div>联系电话</div><div>合作金额（本年）</div><div>最后订单时间</div><div>操作</div>
-            {clients.flatMap((row) => (
+            {filteredClients.flatMap((row) => (
               row.concat("查看详情 编辑 ⋯").map((cell, index) => (
                 <div key={`${row[0]}-${index}`} className={index === 2 ? "stars" : ""}>{cell}</div>
               ))
             ))}
           </div>
-          <footer className="table-footer">共 128 条 <button type="button">10 条/页⌄</button><span>‹</span><b>1</b><span>2</span><span>3</span><span>4</span><span>5</span><span>…</span><span>13</span><span>›</span></footer>
+          <footer className="table-footer">共 {filteredClients.length} 条 <b>当前筛选结果</b></footer>
         </article>
         <aside className="client-side">
           <section className="panel side-donut"><h2>客户状态分布</h2><div className="mini-donut">128<span>客户总数</span></div><p>合作中 89（69.5%）</p><p>潜在客户 21（16.4%）</p><p>已暂停 12（9.4%）</p></section>
@@ -3387,7 +3458,7 @@ function ClientsPage() {
 
 function MessagesPage() {
   const categories = [["全部消息", "12"], ["系统公告", "3"], ["订单通知", "4"], ["成团进度", "2"], ["费用通知", "1"], ["服务通知", "1"], ["平台活动", "1"], ["其他消息", "0"]];
-  const messages = [
+  const initialMessages = [
     ["系统升级维护通知", "SPAR 联采平台将于 2026年5月25日 22:00 - 5月26日 02:00 进行系统升级维护，期间平台部分功能将受影响...", "系统公告", "10:30", "未读"],
     ["订单支付成功通知", "您的订单 PO-20260524001 已支付成功，金额 ¥78,450.00 元。感谢您的采购！", "订单通知", "昨天 16:45", "未读"],
     ["成团进度更新", "您参与的团组「进口饼干零食专场」成团率已更新至 83%，距离成团目标还差 17%。", "成团进度", "昨天 11:20", "未读"],
@@ -3395,28 +3466,50 @@ function MessagesPage() {
     ["服务商响应通知", "您的售后服务请求（工单号：SR-20260522001）已有新回复，请及时查看。", "服务通知", "5月22日 14:30", "已读"],
     ["618 进口好物节活动预告", "SPAR 联采 618 进口好物节即将开启，多重优惠等你来享！", "平台活动", "5月21日 10:00", "已读"],
   ];
+  const [messages, setMessages] = useState(initialMessages);
+  const [activeCategory, setActiveCategory] = useState("全部消息");
+  const [activeStatus, setActiveStatus] = useState("全部状态");
+  const [selectedMessages, setSelectedMessages] = useState<string[]>([]);
+  const visibleMessages = messages.filter((message) => {
+    const matchesCategory = activeCategory === "全部消息" || message[2] === activeCategory;
+    const matchesStatus = activeStatus === "全部状态" || message[4] === activeStatus;
+    return matchesCategory && matchesStatus;
+  });
+  const allSelected = visibleMessages.length > 0 && visibleMessages.every((message) => selectedMessages.includes(message[0]));
+  const toggleAllMessages = () => {
+    setSelectedMessages(allSelected ? [] : visibleMessages.map((message) => message[0]));
+  };
+  const markSelectedRead = () => {
+    setMessages((current) => current.map((message) => selectedMessages.includes(message[0]) ? [message[0], message[1], message[2], message[3], "已读"] : message));
+    setSelectedMessages([]);
+  };
+  const deleteSelected = () => {
+    setMessages((current) => current.filter((message) => !selectedMessages.includes(message[0])));
+    setSelectedMessages([]);
+  };
   return (
     <>
       <section className="dashboard-title"><h1>消息中心</h1><p>下午好，王经理</p></section>
       <section className="message-layout">
         <aside className="panel message-sidebar">
           <h2>消息分类</h2>
-          {categories.map((item, index) => <button className={index === 0 ? "active" : ""} key={item[0]} type="button"><span>{item[0]}</span><b>{item[1]}</b></button>)}
+          {categories.map((item) => <button className={activeCategory === item[0] ? "active" : ""} key={item[0]} type="button" onClick={() => setActiveCategory(item[0])}><span>{item[0]}</span><b>{item[1]}</b></button>)}
           <h2>消息状态</h2>
-          {["全部状态 12", "未读消息 3", "已读消息 9"].map((item) => <button key={item} type="button">{item}</button>)}
+          {["全部状态", "未读", "已读"].map((item) => <button className={activeStatus === item ? "active" : ""} key={item} type="button" onClick={() => setActiveStatus(item)}>{item}</button>)}
         </aside>
         <section className="panel message-main">
-          <div className="message-tools"><label><input type="checkbox" /> 全选</label><button type="button">标为已读</button><button type="button">删除</button><span /><button type="button">全部时间⌄</button><button type="button">最新在前⌄</button><button type="button">刷新</button></div>
-          {messages.map((message, index) => (
+          <div className="message-tools"><label><input type="checkbox" checked={allSelected} onChange={toggleAllMessages} /> 全选</label><button type="button" onClick={markSelectedRead} disabled={selectedMessages.length === 0}>标为已读</button><button type="button" onClick={deleteSelected} disabled={selectedMessages.length === 0}>删除</button><span /><button type="button" onClick={() => { setActiveCategory("全部消息"); setActiveStatus("全部状态"); }}>刷新</button></div>
+          {visibleMessages.map((message, index) => (
             <article className={`message-item ${index === 0 ? "featured" : ""}`} key={message[0]}>
-              <input type="checkbox" />
+              <input type="checkbox" checked={selectedMessages.includes(message[0])} onChange={(event) => setSelectedMessages((current) => event.target.checked ? [...current, message[0]] : current.filter((title) => title !== message[0]))} />
               <span className="message-icon">●</span>
               <div><h2>{message[0]}</h2><p>{message[1]}</p><b>{message[2]}</b></div>
               <time>{message[3]}</time>
               <small>{message[4]}</small>
             </article>
           ))}
-          <footer className="table-footer">共 12 条消息 <span>‹</span><b>1</b><span>2</span><span>›</span><button type="button">20 条/页⌄</button></footer>
+          {visibleMessages.length === 0 ? <div className="table-state">没有符合条件的消息。</div> : null}
+          <footer className="table-footer">共 {visibleMessages.length} 条消息 <b>当前筛选结果</b></footer>
         </section>
       </section>
     </>
@@ -3427,13 +3520,18 @@ function HelpPage() {
   const cats = [["账户与权限", "账户注册、权限管理、企业信息维护", "12 篇文章"], ["采购流程", "商品搜索、下单、成团、订单跟踪", "18 篇文章"], ["支付与结算", "支付方式、发票申请、对账结算", "15 篇文章"], ["物流与配送", "配送方式、运费说明、物流跟踪", "10 篇文章"], ["售后与服务", "退换货政策、售后服务、投诉建议", "8 篇文章"], ["政策与规则", "平台规则、隐私政策、合规说明", "6 篇文章"]];
   const docs = ["如何快速发起采购需求", "成团规则与进度说明", "费用构成与结算说明", "发票申请操作指南", "物流配送说明", "售后服务与退换货政策"];
   const faq = ["如何注册 SPAR 联采平台账号？", "如何发起采购意向？", "成团需要满足什么条件？", "订单确认后可以修改吗？", "如何申请发票？", "商品质量问题如何处理？", "配送范围和时效是怎样的？", "如何联系客户支持？"];
+  const [query, setQuery] = useState("");
+  const [openFaq, setOpenFaq] = useState<string | null>(faq[0]);
+  const [ticketMessage, setTicketMessage] = useState("");
+  const visibleDocs = docs.filter((doc) => !query.trim() || doc.includes(query.trim()));
+  const visibleFaq = faq.filter((item) => !query.trim() || item.includes(query.trim()));
   return (
     <>
       <PageTitle title="帮助中心" subtitle="为您提供全面的帮助与支持" />
       <section className="help-hero">
         <div>
           <h2>您好，王经理<br />有什么可以帮助您?</h2>
-          <div className="help-search"><input placeholder="搜索帮助文档、问题或功能..." /><button className="primary-button" type="button">搜索</button></div>
+          <div className="help-search"><input placeholder="搜索帮助文档、问题或功能..." value={query} onChange={(event) => setQuery(event.target.value)} /><button className="primary-button" type="button" onClick={() => setQuery(query.trim())}>搜索</button></div>
           <p>热门搜索： 成团规则 费用说明 订单管理 发票申请 退换货政策</p>
         </div>
         <div className="help-visual">SPAR</div>
@@ -3443,19 +3541,29 @@ function HelpPage() {
         {cats.map((cat, index) => <article className="panel" key={cat[0]}><span className={`help-dot color-${index}`}>▣</span><h3>{cat[0]}</h3><p>{cat[1]}</p><small>{cat[2]}</small></article>)}
       </section>
       <section className="help-grid">
-        <article className="panel doc-list"><h2>热门文档</h2>{docs.map((doc, index) => <div key={doc}><span>▤</span><strong>{doc}</strong><small>{index + 1}.{index % 2 ? "8" : "3"}k 浏览</small></div>)}</article>
-        <article className="panel faq-list"><h2>常见问题 FAQ</h2>{faq.map((item) => <button key={item} type="button">{item}<span>⌄</span></button>)}</article>
-        <aside className="panel support-card"><h2>需要更多帮助?</h2><p>我们的客服团队随时为您提供专业支持</p><div>在线客服 <b>推荐</b><small>7×24小时在线服务</small></div><div>电话咨询<small>400-888-SPAR (7727)</small></div><div>邮件支持<small>support@spar.com.cn</small></div><button className="primary-button full" type="button">提交工单</button></aside>
+        <article className="panel doc-list"><h2>热门文档</h2>{visibleDocs.map((doc, index) => <div key={doc}><span>▤</span><strong>{doc}</strong><small>{index + 1}.{index % 2 ? "8" : "3"}k 浏览</small></div>)}{visibleDocs.length === 0 ? <p className="empty-note">没有匹配的帮助文档。</p> : null}</article>
+        <article className="panel faq-list"><h2>常见问题 FAQ</h2>{visibleFaq.map((item) => <div className="faq-item" key={item}><button className={openFaq === item ? "active" : ""} type="button" onClick={() => setOpenFaq(openFaq === item ? null : item)}>{item}<span>{openFaq === item ? "⌃" : "⌄"}</span></button>{openFaq === item ? <p>请在对应业务页面完成操作；正式业务文件以订单详情和商品流程节点中的资料为准。</p> : null}</div>)}{visibleFaq.length === 0 ? <p className="empty-note">没有匹配的问题。</p> : null}</article>
+        <aside className="panel support-card"><h2>需要更多帮助?</h2><p>我们的客服团队随时为您提供专业支持</p><div>在线客服 <b>推荐</b><small>7×24小时在线服务</small></div><div>电话咨询<small>400-888-SPAR (7727)</small></div><div>邮件支持<small>support@spar.com.cn</small></div><button className="primary-button full" type="button" onClick={() => setTicketMessage("工单已记录，请到消息中心查看后续回复。")}>提交工单</button>{ticketMessage ? <p className="upload-message">{ticketMessage}</p> : null}</aside>
       </section>
     </>
   );
 }
 
-function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product; setView: (view: View) => void }) {
+function IntentionForm({
+  selectedProduct,
+  productCatalog,
+  setSelectedId,
+  setView,
+}: {
+  selectedProduct: Product;
+  productCatalog: Product[];
+  setSelectedId: (id: string) => void;
+  setView: (view: View) => void;
+}) {
   const pct = progressOf(selectedProduct);
   const [quantityBoxes, setQuantityBoxes] = useState("120");
-  const [receivingRegion] = useState("山东区域仓");
-  const [expectedArrivalWindow] = useState("2026 年 Q4");
+  const [receivingRegion, setReceivingRegion] = useState("华南区域仓");
+  const [expectedArrivalWindow, setExpectedArrivalWindow] = useState("2026 年 Q4");
   const [note, setNote] = useState("");
   const [submitState, setSubmitState] = useState<{
     status: "idle" | "submitting" | "success" | "error";
@@ -3506,10 +3614,27 @@ function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product;
         <section className="panel form-panel">
           <h2 className="section-title">商品信息</h2>
           <div className="form-grid">
-            <label><span>商品</span><button className="field-button product-field" type="button"><ProductImage product={selectedProduct} size="mini" /><strong>{selectedProduct.cnName}</strong><em>⌄</em></button></label>
+            <label>
+              <span>商品</span>
+              <select className="field-select product-select" value={selectedProduct.id} onChange={(event) => setSelectedId(event.target.value)}>
+                {productCatalog.filter((product) => product.status === "approved").map((product) => (
+                  <option key={product.id} value={product.id}>{product.cnName}</option>
+                ))}
+              </select>
+            </label>
             <label><span>意向数量</span><div className="number-field"><input value={quantityBoxes} onChange={(event) => setQuantityBoxes(event.target.value)} aria-label="意向数量" /><b>箱</b></div></label>
-            <label><span>收货区域</span><button className="field-button" type="button">{receivingRegion} <em>⌄</em></button></label>
-            <label><span>期望到货窗口</span><button className="field-button" type="button">{expectedArrivalWindow} <em>⌄</em></button></label>
+            <label>
+              <span>收货区域</span>
+              <select className="field-select" value={receivingRegion} onChange={(event) => setReceivingRegion(event.target.value)}>
+                {["华南区域仓", "山东区域仓", "湖南区域仓", "福建区域仓", "安徽区域仓", "四川区域仓", "重庆区域仓"].map((region) => <option key={region} value={region}>{region}</option>)}
+              </select>
+            </label>
+            <label>
+              <span>期望到货窗口</span>
+              <select className="field-select" value={expectedArrivalWindow} onChange={(event) => setExpectedArrivalWindow(event.target.value)}>
+                {["2026 年 Q4", "2027 年 Q1", "2027 年 Q2", "2027 年 Q3"].map((windowLabel) => <option key={windowLabel} value={windowLabel}>{windowLabel}</option>)}
+              </select>
+            </label>
           </div>
           <label className="note-field"><span>备注（选填）</span><textarea value={note} onChange={(event) => setNote(event.target.value)} placeholder="填写陈列计划、门店覆盖、采购审批要求或其他说明" maxLength={200} /><small>{note.length} / 200</small></label>
           <div className="intent-upload-block">
@@ -3529,7 +3654,7 @@ function IntentionForm({ selectedProduct, setView }: { selectedProduct: Product;
         <aside className="intention-side">
           <section className="panel current-product"><h2>当前商品</h2><div className="current-product-body"><ProductImage product={selectedProduct} size="thumb" /><div><h3>{selectedProduct.cnName}</h3><p>{selectedProduct.spec} · {selectedProduct.caseSpec}</p><PriceBlock product={selectedProduct} compact /></div></div><button className="soft-button" type="button" onClick={() => setView("detail")}>查看商品详情 →</button></section>
           <section className="panel selection-card"><h2>当前选择</h2><SelectionLine icon="▰" label="意向数量" value={`${quantityBoxes || 0} 箱`} /><SelectionLine icon="⌖" label="收货区域" value={receivingRegion} /><SelectionLine icon="□" label="期望到货窗口" value={expectedArrivalWindow} /><div className="selection-progress"><div><span>成团进度</span><strong>{pct}%</strong></div><ProgressBar value={pct} /><small>距离成团目标 {100 - pct}%</small></div></section>
-          <section className="rule-card"><h2>意向规则</h2><p>企业可修改或撤回意向；成团后二次确认前，平台不应对外承诺最终成交价格。</p><button className="plain-link" type="button">查看平台规则 →</button></section>
+          <section className="rule-card"><h2>意向规则</h2><p>企业可修改或撤回意向；成团后二次确认前，平台不应对外承诺最终成交价格。</p><button className="plain-link" type="button" onClick={() => setView("help")}>查看平台规则 →</button></section>
         </aside>
       </div>
       <section className="trust-strip"><TrustCard icon="◇" title="意向保护" text="仅记录意向，不锁定价格、库存和交期，让采购更灵活。" /><TrustCard icon="♙" title="成团通知" text="达到起订量后，平台将自动通知您进行二次确认。" /><TrustCard icon="▤" title="安全合规" text="所有交易遵循平台规则，保障您的采购安全与合规。" /></section>
@@ -3607,6 +3732,7 @@ function ProductFlowFilePanel({
   const canApprove = !isBuyer && operatorRole === "director";
   const [uploads, setUploads] = useState<FileUploadRow[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [actionState, setActionState] = useState("");
 
   const loadProductFiles = () => {
     setLoadState("loading");
@@ -3621,8 +3747,30 @@ function ProductFlowFilePanel({
   };
 
   useEffect(() => {
-    loadProductFiles();
+    void Promise.resolve().then(loadProductFiles);
   }, [product.id]);
+
+  const reviewFile = async (id: string, action: "approve" | "request_changes" | "reject") => {
+    setActionState("正在处理文件复核...");
+    try {
+      const response = await fetch("/api/files/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          action,
+          actorRole: operatorRole,
+          summary: action === "approve" ? "总监在商品页确认文件可归档。" : "总监在商品页要求补充或驳回文件。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "文件复核失败");
+      setActionState("文件复核状态已更新。");
+      loadProductFiles();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "文件复核失败");
+    }
+  };
 
   return (
     <section className="product-flow-panel">
@@ -3644,6 +3792,7 @@ function ProductFlowFilePanel({
         </div>
         <StatusPill status={isBuyer ? "按商品归档" : "上传已锁定商品"} />
       </div>
+      {actionState ? <div className="operation-result">{actionState}</div> : null}
 
       {!isBuyer ? (
         <div className="approval-authority-panel">
@@ -3696,38 +3845,33 @@ function ProductFlowFilePanel({
                     <span>经理尚未完成资料提报，总监账号不能代替上传。</span>
                   </div>
                 ) : null}
-                {managerCanUpload ? (
-                  <div className="stage-upload-slot">
-                    <FileUploadForm product={product} stage={stage} sequence={index + 1} onUploaded={loadProductFiles} />
-                    <div className="upload-fields">
-                      <button type="button">流程节点：{index + 1}. {stage.stage}</button>
-                      <button type="button">业务单号：{stage.stage === "企业意向与成团" ? "GROUP2026-Q4-001" : stage.stage === "二次确认" ? "CONFIRM2026-Q4-001" : "SKU-" + product.id.toUpperCase()}</button>
-                      <button type="button">关联单据：{stage.stage.includes("报关") ? "CUSTOMS2026-001" : stage.stage.includes("运输") ? "柜号待定" : "当前商品"}</button>
-                      <button type="button">文件类型已限定：{stage.files[0]} 等⌄</button>
-                      <button type="button">绑定商品：{product.cnName}</button>
-                      <button type="button">责任岗位：{stage.owner}</button>
-                    </div>
-                  </div>
-                ) : null}
-                {directorCanApprove ? (
-                  <div className="stage-approval-slot">
-                    <strong>总监审批动作</strong>
-                    <p>当前账号只处理审批结果，不修改经理提报的原始资料。</p>
-                    <div>
-                      <button className="primary-button" type="button">审批通过</button>
-                      <button className="outline-button" type="button">要求补充</button>
-                      <button className="outline-button danger" type="button">驳回</button>
-                    </div>
-                  </div>
-                ) : null}
-                {isBuyer ? (
-                  <div className="stage-buyer-actions">
-                    <button className="outline-button" type="button" disabled={!canDownloadStatus(stage.buyerStatus)}>
-                      下载阶段文件
-                    </button>
-                    <button className="soft-button" type="button">
-                      查看状态
-                    </button>
+	                {managerCanUpload ? (
+	                  <div className="stage-upload-slot">
+	                    <FileUploadForm product={product} stage={stage} sequence={index + 1} onUploaded={loadProductFiles} />
+	                    <div className="upload-fields">
+	                      <span>流程节点：{index + 1}. {stage.stage}</span>
+	                      <span>业务单号：{stage.stage === "企业意向与成团" ? "GROUP2026-Q4-001" : stage.stage === "二次确认" ? "CONFIRM2026-Q4-001" : "SKU-" + product.id.toUpperCase()}</span>
+	                      <span>关联单据：{stage.stage.includes("报关") ? "CUSTOMS2026-001" : stage.stage.includes("运输") ? "柜号待定" : "当前商品"}</span>
+	                      <span>文件类型已限定：{stage.files[0]} 等</span>
+	                      <span>绑定商品：{product.cnName}</span>
+	                      <span>责任岗位：{stage.owner}</span>
+	                    </div>
+	                  </div>
+	                ) : null}
+	                {directorCanApprove ? (
+	                  <div className="stage-approval-slot">
+	                    <strong>总监审批动作</strong>
+	                    <p>审批必须绑定到具体上传文件。请在下方“该商品已上传文件”中逐份复核。</p>
+	                  </div>
+	                ) : null}
+	                {isBuyer ? (
+	                  <div className="stage-buyer-actions">
+	                    <button className="outline-button" type="button" disabled={!canDownloadStatus(stage.buyerStatus)} onClick={() => setView("documents")}>
+	                      下载阶段文件
+	                    </button>
+	                    <button className="soft-button" type="button" onClick={() => setView("documents")}>
+	                      查看状态
+	                    </button>
                   </div>
                 ) : null}
               </div>
@@ -3746,6 +3890,13 @@ function ProductFlowFilePanel({
             <small>{upload.businessNo} · {Math.round(upload.sizeBytes / 1024)} KB</small>
             <StatusPill status={upload.manualReviewStatus} />
             <button className="plain-link inline-action" type="button" onClick={() => openFileDownload(upload.id)}>下载</button>
+            {canApprove ? (
+              <>
+                <button className="plain-link inline-action" type="button" onClick={() => reviewFile(upload.id, "approve")}>复核通过</button>
+                <button className="plain-link inline-action" type="button" onClick={() => reviewFile(upload.id, "request_changes")}>要求补充</button>
+                <button className="plain-link inline-action danger" type="button" onClick={() => reviewFile(upload.id, "reject")}>驳回</button>
+              </>
+            ) : null}
           </div>
         ))}
       </section>
@@ -3835,11 +3986,11 @@ function StatusPill({ status }: { status: string }) {
 
 function UploadDropzone({ label }: { label: string }) {
   return (
-    <button className="upload-dropzone" type="button">
+    <div className="upload-dropzone">
       <b>↑</b>
       <strong>{label}</strong>
-      <span>支持 PDF、图片、Excel、Word；上传后保留版本和审核记录</span>
-    </button>
+      <span>意向附件入口待接入；正式流程文件请在订单阶段上传。</span>
+    </div>
   );
 }
 
@@ -3898,8 +4049,8 @@ function ProgressBar({ value }: { value: number }) {
   return <div className="progress-bar" aria-label={`当前进度 ${value}%`}><span style={{ width: `${value}%` }} /></div>;
 }
 
-function Bundle({ title, names, count }: { title: string; names: string; count: string }) {
-  return <article className="bundle-card"><strong>{title}</strong><h3>{names}</h3><p>适合区域门店建立进口食品基础货架。</p><div><span>{count}</span><button type="button">查看组合</button></div></article>;
+function Bundle({ title, names, count, onOpen }: { title: string; names: string; count: string; onOpen: () => void }) {
+  return <article className="bundle-card"><strong>{title}</strong><h3>{names}</h3><p>适合区域门店建立进口食品基础货架。</p><div><span>{count}</span><button type="button" onClick={onOpen}>查看组合</button></div></article>;
 }
 
 function SelectionLine({ icon, label, value }: { icon: string; label: string; value: string }) {
@@ -3921,6 +4072,17 @@ export default function Home() {
   const [selectedId, setSelectedId] = useState(products[0].id);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const selectedProduct = useMemo(() => productCatalog.find((product) => product.id === selectedId) ?? productCatalog[0] ?? products[0], [productCatalog, selectedId]);
+
+  const enterWithUser = (user: AuthUser) => {
+    setAuthUser(user);
+    const nextPortal: Portal = user.userType === "enterprise_user" ? "buyer" : "operator";
+    const nextOperatorRole: OperatorRole = user.role === "director" ? "director" : "manager";
+    setPortalState(nextPortal);
+    if (nextPortal === "operator") {
+      setOperatorRole(nextOperatorRole);
+    }
+    setView("dashboard");
+  };
 
   const loadProducts = () => {
     fetch("/api/products/")
@@ -3950,17 +4112,6 @@ export default function Home() {
       .catch(() => setAuthChecked(true));
   }, []);
 
-  const enterWithUser = (user: AuthUser) => {
-    setAuthUser(user);
-    const nextPortal: Portal = user.userType === "enterprise_user" ? "buyer" : "operator";
-    const nextOperatorRole: OperatorRole = user.role === "director" ? "director" : "manager";
-    setPortalState(nextPortal);
-    if (nextPortal === "operator") {
-      setOperatorRole(nextOperatorRole);
-    }
-    setView("dashboard");
-  };
-
   const logout = async () => {
     await fetch("/api/auth/logout/", { method: "POST" }).catch(() => undefined);
     setAuthUser(null);
@@ -3980,12 +4131,12 @@ export default function Home() {
     <AppShell activeView={view} setView={setView} portal={portal} operatorRole={operatorRole} onLogout={logout} operationNotice={operationNotice} onOperation={setOperationNotice}>
       {view === "dashboard" ? <Dashboard portal={portal} operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "catalog" ? <Catalog portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} reloadProducts={loadProducts} setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "documents" ? <FileCenterPage portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "documents" ? <FileCenterPage portal={portal} productCatalog={productCatalog} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "aiReview" ? <AiReviewPage operatorRole={operatorRole} setView={setView} /> : null}
       {view === "procurement" ? <ProcurementProgress portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} setView={setView} setSelectedId={setSelectedId} setSelectedOrderId={setSelectedOrderId} /> : null}
       {view === "orderDetail" ? <OrderDetailPage orderId={selectedOrderId} portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "progress" ? <ProgressBoard portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} setView={setView} /> : null}
+      {view === "progress" ? <ProgressBoard portal={portal} productCatalog={productCatalog} setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} productCatalog={productCatalog} setSelectedId={setSelectedId} setView={setView} /> : null}
       {view === "intentionAdmin" ? <IntentionAdminPage operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "detail" ? <DetailPage product={selectedProduct} portal={portal} operatorRole={operatorRole} setView={setView} /> : null}
       {view === "clients" ? <ClientsPage /> : null}
