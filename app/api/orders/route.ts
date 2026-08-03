@@ -93,6 +93,19 @@ type UpdateOrderPayload = {
   deliveryWarehouseName?: string;
   deliveredBoxes?: number | string;
   deliveryStatus?: string;
+  signedAt?: string;
+  signerName?: string;
+  signedBoxes?: number | string;
+  rejectedBoxes?: number | string;
+  receiptStatus?: string;
+  damageClaimStatus?: string;
+  statementNo?: string;
+  invoiceNo?: string;
+  serviceFeeCny?: number | string;
+  receivableAmountCny?: number | string;
+  receivedAmountCny?: number | string;
+  settlementStatus?: string;
+  settledAt?: string;
   overseasSupplierName?: string;
   overseasPoNo?: string;
   proformaInvoiceNo?: string;
@@ -227,6 +240,19 @@ export async function GET(request: Request) {
         deliveryWarehouseName: procurementOrders.deliveryWarehouseName,
         deliveredBoxes: procurementOrders.deliveredBoxes,
         deliveryStatus: procurementOrders.deliveryStatus,
+        signedAt: procurementOrders.signedAt,
+        signerName: procurementOrders.signerName,
+        signedBoxes: procurementOrders.signedBoxes,
+        rejectedBoxes: procurementOrders.rejectedBoxes,
+        receiptStatus: procurementOrders.receiptStatus,
+        damageClaimStatus: procurementOrders.damageClaimStatus,
+        statementNo: procurementOrders.statementNo,
+        invoiceNo: procurementOrders.invoiceNo,
+        serviceFeeCny: procurementOrders.serviceFeeCny,
+        receivableAmountCny: procurementOrders.receivableAmountCny,
+        receivedAmountCny: procurementOrders.receivedAmountCny,
+        settlementStatus: procurementOrders.settlementStatus,
+        settledAt: procurementOrders.settledAt,
         overseasSupplierName: procurementOrders.overseasSupplierName,
         overseasPoNo: procurementOrders.overseasPoNo,
         proformaInvoiceNo: procurementOrders.proformaInvoiceNo,
@@ -429,6 +455,21 @@ export async function PATCH(request: Request) {
     if (payload.deliveredBoxes !== undefined && payload.deliveredBoxes !== "" && (!Number.isInteger(Number(payload.deliveredBoxes)) || Number(payload.deliveredBoxes) < 0)) {
       return badRequest("deliveredBoxes must be a non-negative integer");
     }
+    if (payload.signedBoxes !== undefined && payload.signedBoxes !== "" && (!Number.isInteger(Number(payload.signedBoxes)) || Number(payload.signedBoxes) < 0)) {
+      return badRequest("signedBoxes must be a non-negative integer");
+    }
+    if (payload.rejectedBoxes !== undefined && payload.rejectedBoxes !== "" && (!Number.isInteger(Number(payload.rejectedBoxes)) || Number(payload.rejectedBoxes) < 0)) {
+      return badRequest("rejectedBoxes must be a non-negative integer");
+    }
+    if (payload.serviceFeeCny !== undefined && payload.serviceFeeCny !== "" && (!Number.isFinite(Number(payload.serviceFeeCny)) || Number(payload.serviceFeeCny) < 0)) {
+      return badRequest("serviceFeeCny must be a non-negative number");
+    }
+    if (payload.receivableAmountCny !== undefined && payload.receivableAmountCny !== "" && (!Number.isFinite(Number(payload.receivableAmountCny)) || Number(payload.receivableAmountCny) < 0)) {
+      return badRequest("receivableAmountCny must be a non-negative number");
+    }
+    if (payload.receivedAmountCny !== undefined && payload.receivedAmountCny !== "" && (!Number.isFinite(Number(payload.receivedAmountCny)) || Number(payload.receivedAmountCny) < 0)) {
+      return badRequest("receivedAmountCny must be a non-negative number");
+    }
 
     if (payload.action !== "mark_exception" && payload.action !== "request_changes") {
       const currentStage = current.currentStage as WorkflowStage;
@@ -484,6 +525,19 @@ export async function PATCH(request: Request) {
         deliveryWarehouseName: payload.deliveryWarehouseName?.trim() || current.deliveryWarehouseName,
         deliveredBoxes: payload.deliveredBoxes === undefined || payload.deliveredBoxes === "" ? current.deliveredBoxes : Number(payload.deliveredBoxes),
         deliveryStatus: payload.deliveryStatus?.trim() || current.deliveryStatus,
+        signedAt: payload.signedAt?.trim() || current.signedAt,
+        signerName: payload.signerName?.trim() || current.signerName,
+        signedBoxes: payload.signedBoxes === undefined || payload.signedBoxes === "" ? current.signedBoxes : Number(payload.signedBoxes),
+        rejectedBoxes: payload.rejectedBoxes === undefined || payload.rejectedBoxes === "" ? current.rejectedBoxes : Number(payload.rejectedBoxes),
+        receiptStatus: payload.receiptStatus?.trim() || current.receiptStatus,
+        damageClaimStatus: payload.damageClaimStatus?.trim() || current.damageClaimStatus,
+        statementNo: payload.statementNo?.trim() || current.statementNo,
+        invoiceNo: payload.invoiceNo?.trim() || current.invoiceNo,
+        serviceFeeCny: payload.serviceFeeCny === undefined || payload.serviceFeeCny === "" ? current.serviceFeeCny : Number(payload.serviceFeeCny),
+        receivableAmountCny: payload.receivableAmountCny === undefined || payload.receivableAmountCny === "" ? current.receivableAmountCny : Number(payload.receivableAmountCny),
+        receivedAmountCny: payload.receivedAmountCny === undefined || payload.receivedAmountCny === "" ? current.receivedAmountCny : Number(payload.receivedAmountCny),
+        settlementStatus: payload.settlementStatus?.trim() || current.settlementStatus,
+        settledAt: payload.settledAt?.trim() || current.settledAt,
         overseasSupplierName: payload.overseasSupplierName?.trim() || current.overseasSupplierName,
         overseasPoNo: payload.overseasPoNo?.trim() || current.overseasPoNo,
         proformaInvoiceNo: payload.proformaInvoiceNo?.trim() || current.proformaInvoiceNo,
@@ -534,6 +588,19 @@ export async function PATCH(request: Request) {
         deliveryWarehouseName: payload.deliveryWarehouseName,
         deliveredBoxes: payload.deliveredBoxes,
         deliveryStatus: payload.deliveryStatus,
+        signedAt: payload.signedAt,
+        signerName: payload.signerName,
+        signedBoxes: payload.signedBoxes,
+        rejectedBoxes: payload.rejectedBoxes,
+        receiptStatus: payload.receiptStatus,
+        damageClaimStatus: payload.damageClaimStatus,
+        statementNo: payload.statementNo,
+        invoiceNo: payload.invoiceNo,
+        serviceFeeCny: payload.serviceFeeCny,
+        receivableAmountCny: payload.receivableAmountCny,
+        receivedAmountCny: payload.receivedAmountCny,
+        settlementStatus: payload.settlementStatus,
+        settledAt: payload.settledAt,
         overseasSupplierName: payload.overseasSupplierName,
         overseasPoNo: payload.overseasPoNo,
         proformaInvoiceNo: payload.proformaInvoiceNo,

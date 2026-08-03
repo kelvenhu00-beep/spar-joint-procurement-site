@@ -42,6 +42,7 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "drizzle", "0006_customs_clearance_fields.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0007_warehouse_sorting_fields.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0008_domestic_delivery_fields.sql")).isFile());
+  assert.ok(statSync(join(root, "drizzle", "0009_signed_settlement_fields.sql")).isFile());
 });
 
 test("order workflow enforces reviewed stage documents", () => {
@@ -115,4 +116,26 @@ test("domestic delivery stage has carrier and dispatch fields", () => {
   assert.ok(orderRoute.includes("deliveredBoxes must be a non-negative integer"), "delivered boxes must be validated");
   assert.ok(page.includes("domestic-delivery-panel") && page.includes("saveDomesticDeliveryFields"), "order detail must render domestic delivery form");
   assert.ok(migration.includes("domestic_delivery_no") && migration.includes("dispatch_at") && migration.includes("delivered_boxes"), "domestic delivery migration must add carrier and dispatch fields");
+});
+
+test("signed stage has receipt and exception fields", () => {
+  const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  const migration = readFileSync(join(root, "drizzle", "0009_signed_settlement_fields.sql"), "utf8");
+  assert.ok(orderRoute.includes("signed: [\"签收单\", \"回单照片\"]"), "signed gate must require receipt documents");
+  assert.ok(orderRoute.includes("signedAt") && orderRoute.includes("signedBoxes") && orderRoute.includes("damageClaimStatus"), "orders API must expose signed fields");
+  assert.ok(orderRoute.includes("signedBoxes must be a non-negative integer"), "signed boxes must be validated");
+  assert.ok(page.includes("signed-panel") && page.includes("saveSignedFields"), "order detail must render signed form");
+  assert.ok(migration.includes("signed_at") && migration.includes("signed_boxes") && migration.includes("damage_claim_status"), "signed migration must add receipt fields");
+});
+
+test("settlement stage has reconciliation and payment fields", () => {
+  const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  const migration = readFileSync(join(root, "drizzle", "0009_signed_settlement_fields.sql"), "utf8");
+  assert.ok(orderRoute.includes("settlement: [\"对账单\", \"发票\", \"服务费账单\"]"), "settlement gate must require reconciliation, invoice and service fee documents");
+  assert.ok(orderRoute.includes("statementNo") && orderRoute.includes("serviceFeeCny") && orderRoute.includes("settlementStatus"), "orders API must expose settlement fields");
+  assert.ok(orderRoute.includes("serviceFeeCny must be a non-negative number"), "settlement amounts must be validated");
+  assert.ok(page.includes("settlement-panel") && page.includes("saveSettlementFields") && page.includes("canEditSettlementFields"), "order detail must render director settlement form");
+  assert.ok(migration.includes("statement_no") && migration.includes("service_fee_cny") && migration.includes("settlement_status"), "settlement migration must add reconciliation fields");
 });

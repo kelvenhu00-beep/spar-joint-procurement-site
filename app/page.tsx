@@ -194,6 +194,19 @@ type ProcurementOrderRow = {
   deliveryWarehouseName: string | null;
   deliveredBoxes: number | null;
   deliveryStatus: string | null;
+  signedAt: string | null;
+  signerName: string | null;
+  signedBoxes: number | null;
+  rejectedBoxes: number | null;
+  receiptStatus: string | null;
+  damageClaimStatus: string | null;
+  statementNo: string | null;
+  invoiceNo: string | null;
+  serviceFeeCny: number | null;
+  receivableAmountCny: number | null;
+  receivedAmountCny: number | null;
+  settlementStatus: string | null;
+  settledAt: string | null;
   overseasSupplierName: string | null;
   overseasPoNo: string | null;
   proformaInvoiceNo: string | null;
@@ -1815,6 +1828,23 @@ function OrderDetailPage({
     deliveredBoxes: "",
     deliveryStatus: "待出库",
   });
+  const [signedForm, setSignedForm] = useState({
+    signedAt: "",
+    signerName: "",
+    signedBoxes: "",
+    rejectedBoxes: "0",
+    receiptStatus: "待上传回单",
+    damageClaimStatus: "无异常",
+  });
+  const [settlementForm, setSettlementForm] = useState({
+    statementNo: "",
+    invoiceNo: "",
+    serviceFeeCny: "",
+    receivableAmountCny: "",
+    receivedAmountCny: "",
+    settlementStatus: "待对账",
+    settledAt: "",
+  });
 
   const loadOrder = () => {
     if (!orderId) {
@@ -1881,6 +1911,23 @@ function OrderDetailPage({
           deliveryWarehouseName: data.order.deliveryWarehouseName ?? "",
           deliveredBoxes: data.order.deliveredBoxes === null || data.order.deliveredBoxes === undefined ? "" : String(data.order.deliveredBoxes),
           deliveryStatus: data.order.deliveryStatus ?? "待出库",
+        });
+        setSignedForm({
+          signedAt: data.order.signedAt ?? "",
+          signerName: data.order.signerName ?? "",
+          signedBoxes: data.order.signedBoxes === null || data.order.signedBoxes === undefined ? "" : String(data.order.signedBoxes),
+          rejectedBoxes: data.order.rejectedBoxes === null || data.order.rejectedBoxes === undefined ? "0" : String(data.order.rejectedBoxes),
+          receiptStatus: data.order.receiptStatus ?? "待上传回单",
+          damageClaimStatus: data.order.damageClaimStatus ?? "无异常",
+        });
+        setSettlementForm({
+          statementNo: data.order.statementNo ?? "",
+          invoiceNo: data.order.invoiceNo ?? "",
+          serviceFeeCny: data.order.serviceFeeCny === null || data.order.serviceFeeCny === undefined ? "" : String(data.order.serviceFeeCny),
+          receivableAmountCny: data.order.receivableAmountCny === null || data.order.receivableAmountCny === undefined ? "" : String(data.order.receivableAmountCny),
+          receivedAmountCny: data.order.receivedAmountCny === null || data.order.receivedAmountCny === undefined ? "" : String(data.order.receivedAmountCny),
+          settlementStatus: data.order.settlementStatus ?? "待对账",
+          settledAt: data.order.settledAt ?? "",
         });
         setLoadState("ready");
       })
@@ -2059,6 +2106,54 @@ function OrderDetailPage({
     }
   };
 
+  const saveSignedFields = async () => {
+    if (!order) return;
+    setActionState("正在保存签收信息...");
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "request_changes",
+          nextStage: order.currentStage,
+          ...signedForm,
+          note: "经理补充签收结构化字段。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "保存失败");
+      setActionState("签收信息已保存。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "保存失败");
+    }
+  };
+
+  const saveSettlementFields = async () => {
+    if (!order) return;
+    setActionState("正在保存结算归档信息...");
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "request_changes",
+          nextStage: order.currentStage,
+          ...settlementForm,
+          note: "总监补充结算归档结构化字段。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "保存失败");
+      setActionState("结算归档信息已保存。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "保存失败");
+    }
+  };
+
   if (loadState === "loading") {
     return <section className="panel order-detail-panel"><h2>正在加载订单详情...</h2></section>;
   }
@@ -2085,6 +2180,8 @@ function OrderDetailPage({
   const canEditCustomsFields = !isBuyer && operatorRole === "manager" && order.currentStage === "customs_clearance";
   const canEditWarehouseFields = !isBuyer && operatorRole === "manager" && order.currentStage === "warehouse_sorting";
   const canEditDomesticDeliveryFields = !isBuyer && operatorRole === "manager" && order.currentStage === "domestic_delivery";
+  const canEditSignedFields = !isBuyer && operatorRole === "manager" && order.currentStage === "signed";
+  const canEditSettlementFields = !isBuyer && operatorRole === "director" && order.currentStage === "settlement";
 
   return (
     <>
@@ -2245,6 +2342,49 @@ function OrderDetailPage({
             <label><span>配送状态</span><input value={domesticDeliveryForm.deliveryStatus} disabled={!canEditDomesticDeliveryFields} onChange={(event) => setDomesticDeliveryForm({ ...domesticDeliveryForm, deliveryStatus: event.target.value })} /></label>
           </div>
           {canEditDomesticDeliveryFields ? <button className="primary-button" type="button" onClick={saveDomesticDeliveryFields}>保存二段配送信息</button> : null}
+        </section>
+      ) : null}
+
+      {order.currentStage === "signed" ? (
+        <section className="panel overseas-purchase-panel signed-panel">
+          <div className="panel-head">
+            <div>
+              <h2>签收信息</h2>
+              <p>记录签收日期、签收人、实签箱数、拒收箱数和回单状态，作为进入结算归档前的结构化资料。</p>
+            </div>
+            <StatusPill status={order.receiptStatus ?? "待补充"} />
+          </div>
+          <div className="overseas-form-grid">
+            <label><span>签收日期</span><input type="date" value={signedForm.signedAt} disabled={!canEditSignedFields} onChange={(event) => setSignedForm({ ...signedForm, signedAt: event.target.value })} /></label>
+            <label><span>签收人</span><input value={signedForm.signerName} disabled={!canEditSignedFields} onChange={(event) => setSignedForm({ ...signedForm, signerName: event.target.value })} /></label>
+            <label><span>实签箱数</span><input value={signedForm.signedBoxes} disabled={!canEditSignedFields} onChange={(event) => setSignedForm({ ...signedForm, signedBoxes: event.target.value })} /></label>
+            <label><span>拒收箱数</span><input value={signedForm.rejectedBoxes} disabled={!canEditSignedFields} onChange={(event) => setSignedForm({ ...signedForm, rejectedBoxes: event.target.value })} /></label>
+            <label><span>回单状态</span><input value={signedForm.receiptStatus} disabled={!canEditSignedFields} onChange={(event) => setSignedForm({ ...signedForm, receiptStatus: event.target.value })} /></label>
+            <label><span>货损索赔状态</span><input value={signedForm.damageClaimStatus} disabled={!canEditSignedFields} onChange={(event) => setSignedForm({ ...signedForm, damageClaimStatus: event.target.value })} /></label>
+          </div>
+          {canEditSignedFields ? <button className="primary-button" type="button" onClick={saveSignedFields}>保存签收信息</button> : null}
+        </section>
+      ) : null}
+
+      {order.currentStage === "settlement" ? (
+        <section className="panel overseas-purchase-panel settlement-panel">
+          <div className="panel-head">
+            <div>
+              <h2>结算归档信息</h2>
+              <p>记录对账单、发票、服务费、应收与已收金额，作为采购项目完结归档依据。</p>
+            </div>
+            <StatusPill status={order.settlementStatus ?? "待补充"} />
+          </div>
+          <div className="overseas-form-grid">
+            <label><span>对账单号</span><input value={settlementForm.statementNo} disabled={!canEditSettlementFields} onChange={(event) => setSettlementForm({ ...settlementForm, statementNo: event.target.value })} /></label>
+            <label><span>发票号</span><input value={settlementForm.invoiceNo} disabled={!canEditSettlementFields} onChange={(event) => setSettlementForm({ ...settlementForm, invoiceNo: event.target.value })} /></label>
+            <label><span>服务费</span><input value={settlementForm.serviceFeeCny} disabled={!canEditSettlementFields} onChange={(event) => setSettlementForm({ ...settlementForm, serviceFeeCny: event.target.value })} /></label>
+            <label><span>应收金额</span><input value={settlementForm.receivableAmountCny} disabled={!canEditSettlementFields} onChange={(event) => setSettlementForm({ ...settlementForm, receivableAmountCny: event.target.value })} /></label>
+            <label><span>已收金额</span><input value={settlementForm.receivedAmountCny} disabled={!canEditSettlementFields} onChange={(event) => setSettlementForm({ ...settlementForm, receivedAmountCny: event.target.value })} /></label>
+            <label><span>结算状态</span><input value={settlementForm.settlementStatus} disabled={!canEditSettlementFields} onChange={(event) => setSettlementForm({ ...settlementForm, settlementStatus: event.target.value })} /></label>
+            <label><span>结算日期</span><input type="date" value={settlementForm.settledAt} disabled={!canEditSettlementFields} onChange={(event) => setSettlementForm({ ...settlementForm, settledAt: event.target.value })} /></label>
+          </div>
+          {canEditSettlementFields ? <button className="primary-button" type="button" onClick={saveSettlementFields}>保存结算归档信息</button> : null}
         </section>
       ) : null}
 

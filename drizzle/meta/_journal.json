@@ -64,6 +64,13 @@
       "when": 1785748800000,
       "tag": "0008_domestic_delivery_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1785750600000,
+      "tag": "0009_signed_settlement_fields",
+      "breakpoints": true
     }
   ]
 }
