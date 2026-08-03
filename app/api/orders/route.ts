@@ -45,7 +45,7 @@ const stageRequiredDocuments: Record<WorkflowStage, string[]> = {
   second_confirmation: ["最终报价确认单", "企业二次确认回执"],
   contract: ["销售合同", "采购订单"],
   deposit_payment: ["付款通知书", "预付款证明"],
-  overseas_purchase: ["海外 PO", "Proforma Invoice"],
+  overseas_purchase: ["海外 PO", "Proforma Invoice", "供应商订单确认", "对外付款证明"],
   international_shipping: ["Booking", "提单", "装柜照片"],
   customs_clearance: ["Commercial Invoice", "Packing List", "报关单", "税单"],
   warehouse_sorting: ["入库单", "分货清单"],
@@ -70,6 +70,12 @@ type UpdateOrderPayload = {
   containerNo?: string;
   sealNo?: string;
   customsDeclarationNo?: string;
+  overseasSupplierName?: string;
+  overseasPoNo?: string;
+  proformaInvoiceNo?: string;
+  overseasCurrency?: string;
+  overseasAmount?: number | string;
+  overseasPaymentStatus?: string;
 };
 
 type BusinessDocumentRecord = typeof businessDocuments.$inferSelect;
@@ -175,6 +181,12 @@ export async function GET(request: Request) {
         containerNo: procurementOrders.containerNo,
         sealNo: procurementOrders.sealNo,
         customsDeclarationNo: procurementOrders.customsDeclarationNo,
+        overseasSupplierName: procurementOrders.overseasSupplierName,
+        overseasPoNo: procurementOrders.overseasPoNo,
+        proformaInvoiceNo: procurementOrders.proformaInvoiceNo,
+        overseasCurrency: procurementOrders.overseasCurrency,
+        overseasAmount: procurementOrders.overseasAmount,
+        overseasPaymentStatus: procurementOrders.overseasPaymentStatus,
         createdAt: procurementOrders.createdAt,
         updatedAt: procurementOrders.updatedAt,
       })
@@ -347,6 +359,9 @@ export async function PATCH(request: Request) {
     if (!isApprovalStage && user.role !== "manager") {
       return Response.json({ error: "该履约节点必须由商品运营经理推进。" }, { status: 403 });
     }
+    if (payload.overseasAmount !== undefined && payload.overseasAmount !== "" && !Number.isFinite(Number(payload.overseasAmount))) {
+      return badRequest("overseasAmount must be a number");
+    }
 
     if (payload.action !== "mark_exception" && payload.action !== "request_changes") {
       const currentStage = current.currentStage as WorkflowStage;
@@ -379,6 +394,12 @@ export async function PATCH(request: Request) {
         containerNo: payload.containerNo?.trim() || current.containerNo,
         sealNo: payload.sealNo?.trim() || current.sealNo,
         customsDeclarationNo: payload.customsDeclarationNo?.trim() || current.customsDeclarationNo,
+        overseasSupplierName: payload.overseasSupplierName?.trim() || current.overseasSupplierName,
+        overseasPoNo: payload.overseasPoNo?.trim() || current.overseasPoNo,
+        proformaInvoiceNo: payload.proformaInvoiceNo?.trim() || current.proformaInvoiceNo,
+        overseasCurrency: payload.overseasCurrency?.trim() || current.overseasCurrency,
+        overseasAmount: payload.overseasAmount === undefined || payload.overseasAmount === "" ? current.overseasAmount : Number(payload.overseasAmount),
+        overseasPaymentStatus: payload.overseasPaymentStatus?.trim() || current.overseasPaymentStatus,
         updatedByUserId: user.id,
         updatedAt: sql`CURRENT_TIMESTAMP`,
       })
@@ -400,6 +421,12 @@ export async function PATCH(request: Request) {
         containerNo: payload.containerNo,
         sealNo: payload.sealNo,
         customsDeclarationNo: payload.customsDeclarationNo,
+        overseasSupplierName: payload.overseasSupplierName,
+        overseasPoNo: payload.overseasPoNo,
+        proformaInvoiceNo: payload.proformaInvoiceNo,
+        overseasCurrency: payload.overseasCurrency,
+        overseasAmount: payload.overseasAmount,
+        overseasPaymentStatus: payload.overseasPaymentStatus,
       }),
     });
 

@@ -38,6 +38,7 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "drizzle", "0002_accounts_documents_sessions.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0003_procurement_orders_workflow.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0004_order_bound_documents_files.sql")).isFile());
+  assert.ok(statSync(join(root, "drizzle", "0005_overseas_purchase_fields.sql")).isFile());
 });
 
 test("order workflow enforces reviewed stage documents", () => {
@@ -63,4 +64,12 @@ test("enterprise upload is limited to payment proof", () => {
   assert.ok(fileRoute.includes("企业账号当前只能在预付款阶段上传预付款证明。"), "enterprise upload must be restricted to payment proof");
   assert.ok(fileRoute.includes("order.currentStage !== \"deposit_payment\""), "enterprise payment upload must require deposit payment stage");
   assert.ok(page.includes("canBuyerUploadPaymentProof"), "buyer payment proof upload form must exist on order detail");
+});
+
+test("overseas purchase stage has structured fields and full document gate", () => {
+  const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  assert.ok(orderRoute.includes("供应商订单确认") && orderRoute.includes("对外付款证明"), "overseas purchase gate must include supplier confirmation and outbound payment proof");
+  assert.ok(orderRoute.includes("overseasSupplierName") && orderRoute.includes("proformaInvoiceNo"), "orders API must expose overseas purchase fields");
+  assert.ok(page.includes("overseas-purchase-panel"), "order detail must render overseas purchase form");
 });

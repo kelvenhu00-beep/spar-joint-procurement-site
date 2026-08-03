@@ -171,6 +171,12 @@ type ProcurementOrderRow = {
   containerNo: string | null;
   sealNo: string | null;
   customsDeclarationNo: string | null;
+  overseasSupplierName: string | null;
+  overseasPoNo: string | null;
+  proformaInvoiceNo: string | null;
+  overseasCurrency: string | null;
+  overseasAmount: number | null;
+  overseasPaymentStatus: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -1742,6 +1748,14 @@ function OrderDetailPage({
   const [events, setEvents] = useState<ProcurementOrderEventRow[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [actionState, setActionState] = useState("");
+  const [overseasForm, setOverseasForm] = useState({
+    overseasSupplierName: "",
+    overseasPoNo: "",
+    proformaInvoiceNo: "",
+    overseasCurrency: "EUR",
+    overseasAmount: "",
+    overseasPaymentStatus: "待付款",
+  });
 
   const loadOrder = () => {
     if (!orderId) {
@@ -1765,6 +1779,14 @@ function OrderDetailPage({
         setDocuments(data.documents ?? []);
         setUploads(data.uploads ?? []);
         setEvents(data.events ?? []);
+        setOverseasForm({
+          overseasSupplierName: data.order.overseasSupplierName ?? "",
+          overseasPoNo: data.order.overseasPoNo ?? "",
+          proformaInvoiceNo: data.order.proformaInvoiceNo ?? "",
+          overseasCurrency: data.order.overseasCurrency ?? "EUR",
+          overseasAmount: data.order.overseasAmount === null || data.order.overseasAmount === undefined ? "" : String(data.order.overseasAmount),
+          overseasPaymentStatus: data.order.overseasPaymentStatus ?? "待付款",
+        });
         setLoadState("ready");
       })
       .catch(() => setLoadState("error"));
@@ -1822,6 +1844,30 @@ function OrderDetailPage({
     }
   };
 
+  const saveOverseasFields = async () => {
+    if (!order) return;
+    setActionState("正在保存海外采购信息...");
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "request_changes",
+          nextStage: order.currentStage,
+          ...overseasForm,
+          note: "经理补充海外采购结构化字段。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "保存失败");
+      setActionState("海外采购信息已保存。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "保存失败");
+    }
+  };
+
   if (loadState === "loading") {
     return <section className="panel order-detail-panel"><h2>正在加载订单详情...</h2></section>;
   }
@@ -1843,6 +1889,7 @@ function OrderDetailPage({
   const currentGate = currentStage?.gate;
   const nextStageNeedsDirector = order.nextStage === "contract" || order.nextStage === "settlement";
   const canAdvanceByRole = !isBuyer && Boolean(order.nextStage) && (nextStageNeedsDirector ? operatorRole === "director" : operatorRole === "manager");
+  const canEditOverseasFields = !isBuyer && operatorRole === "manager" && order.currentStage === "overseas_purchase";
 
   return (
     <>
@@ -1896,6 +1943,27 @@ function OrderDetailPage({
         </div>
         <StatusPill status={currentGate?.ready ? "可推进" : "资料未齐"} />
       </section>
+
+      {order.currentStage === "overseas_purchase" ? (
+        <section className="panel overseas-purchase-panel">
+          <div className="panel-head">
+            <div>
+              <h2>海外采购信息</h2>
+              <p>记录供应商、PO、PI、币种金额和对外付款状态，作为进入国际运输前的结构化资料。</p>
+            </div>
+            <StatusPill status={order.overseasPaymentStatus ?? "待补充"} />
+          </div>
+          <div className="overseas-form-grid">
+            <label><span>海外供应商</span><input value={overseasForm.overseasSupplierName} disabled={!canEditOverseasFields} onChange={(event) => setOverseasForm({ ...overseasForm, overseasSupplierName: event.target.value })} /></label>
+            <label><span>海外 PO 号</span><input value={overseasForm.overseasPoNo} disabled={!canEditOverseasFields} onChange={(event) => setOverseasForm({ ...overseasForm, overseasPoNo: event.target.value })} /></label>
+            <label><span>PI 号</span><input value={overseasForm.proformaInvoiceNo} disabled={!canEditOverseasFields} onChange={(event) => setOverseasForm({ ...overseasForm, proformaInvoiceNo: event.target.value })} /></label>
+            <label><span>币种</span><input value={overseasForm.overseasCurrency} disabled={!canEditOverseasFields} onChange={(event) => setOverseasForm({ ...overseasForm, overseasCurrency: event.target.value })} /></label>
+            <label><span>海外采购金额</span><input value={overseasForm.overseasAmount} disabled={!canEditOverseasFields} onChange={(event) => setOverseasForm({ ...overseasForm, overseasAmount: event.target.value })} /></label>
+            <label><span>对外付款状态</span><input value={overseasForm.overseasPaymentStatus} disabled={!canEditOverseasFields} onChange={(event) => setOverseasForm({ ...overseasForm, overseasPaymentStatus: event.target.value })} /></label>
+          </div>
+          {canEditOverseasFields ? <button className="primary-button" type="button" onClick={saveOverseasFields}>保存海外采购信息</button> : null}
+        </section>
+      ) : null}
 
       <section className="order-detail-layout">
         <article className="panel order-stage-panel">
