@@ -65,6 +65,7 @@ export async function POST(request: Request) {
     const user = await getCurrentUser(request);
     if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
     if (user.userType !== "operator_user") return Response.json({ error: "只有内部账号可以维护商品。" }, { status: 403 });
+    if (user.role !== "manager") return Response.json({ error: "只有商品运营经理可以提报商品。" }, { status: 403 });
 
     const payload = (await request.json()) as ProductPayload;
     const id = payload.id?.trim() || makeId("sku");
@@ -116,6 +117,13 @@ export async function PATCH(request: Request) {
     const db = getDb();
     const [existing] = await db.select().from(products).where(eq(products.id, id)).limit(1);
     if (!existing) return badRequest("product does not exist");
+    const nextStatus = payload.status?.trim();
+    if (nextStatus === "reviewing" && user.role !== "manager") {
+      return Response.json({ error: "只有商品运营经理可以提交商品审批。" }, { status: 403 });
+    }
+    if ((nextStatus === "approved" || nextStatus === "rejected") && user.role !== "director") {
+      return Response.json({ error: "只有商品总监可以审批商品。" }, { status: 403 });
+    }
 
     const [product] = await db
       .update(products)
@@ -134,7 +142,7 @@ export async function PATCH(request: Request) {
         moqBoxes: payload.moqBoxes === undefined ? existing.moqBoxes : requirePositiveInteger(payload.moqBoxes, "moqBoxes"),
         last12MonthBoxes: payload.last12MonthBoxes === undefined ? existing.last12MonthBoxes : Number(payload.last12MonthBoxes),
         targetBoxes20ft: payload.targetBoxes20ft === undefined ? existing.targetBoxes20ft : requirePositiveInteger(payload.targetBoxes20ft, "targetBoxes20ft"),
-        status: payload.status?.trim() || existing.status,
+        status: nextStatus || existing.status,
         authorizationStatus: payload.authorizationStatus?.trim() || existing.authorizationStatus,
         labelStatus: payload.labelStatus?.trim() || existing.labelStatus,
         hsCode: payload.hsCode?.trim() || existing.hsCode,

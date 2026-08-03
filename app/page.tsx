@@ -46,7 +46,7 @@ type Product = {
   cnName: string;
   brand: string;
   enName: string;
-  country: "德国" | "奥地利" | "英国" | "意大利";
+  country: string;
   flag: string;
   category: string;
   spec: string;
@@ -63,6 +63,35 @@ type Product = {
   summary: string;
   decisionNote: string;
   image: string;
+  status?: string;
+  authorizationStatus?: string;
+  labelStatus?: string;
+  hsCode?: string | null;
+  storageRequirement?: string;
+};
+
+type ApiProduct = {
+  id: string;
+  cnName: string;
+  brand: string;
+  enName: string;
+  country: string;
+  category: string;
+  spec: string;
+  caseSpec: string;
+  shelfLifeMonths: number;
+  estimatedLandedCostCny: number;
+  retailPriceBand: string;
+  grossMarginBand: string;
+  moqBoxes: number;
+  last12MonthBoxes: number;
+  targetBoxes20ft: number;
+  status: string;
+  authorizationStatus: string;
+  labelStatus: string;
+  hsCode: string | null;
+  storageRequirement: string;
+  imagePath: string;
 };
 
 type PurchaseIntentionRow = {
@@ -123,6 +152,50 @@ type AccountListRow = {
   enterpriseId?: string;
   hasPassword: boolean;
 };
+
+function countryFlag(country: string) {
+  const flags: Record<string, string> = {
+    德国: "🇩🇪",
+    奥地利: "🇦🇹",
+    英国: "🇬🇧",
+    意大利: "🇮🇹",
+    法国: "🇫🇷",
+    西班牙: "🇪🇸",
+    荷兰: "🇳🇱",
+  };
+  return flags[country] ?? "🏷";
+}
+
+function productFromApi(row: ApiProduct): Product {
+  return {
+    id: row.id,
+    cnName: row.cnName,
+    brand: row.brand,
+    enName: row.enName,
+    country: row.country,
+    flag: countryFlag(row.country),
+    category: row.category,
+    spec: row.spec,
+    caseSpec: row.caseSpec,
+    shelfLife: `${row.shelfLifeMonths} 个月`,
+    price: `¥ ${row.estimatedLandedCostCny.toFixed(2)} / 箱`,
+    priceBand: row.retailPriceBand,
+    gross: row.grossMarginBand,
+    moq: `MOQ ${row.moqBoxes} 箱起订`,
+    currentBoxes: 0,
+    targetBoxes: row.targetBoxes20ft,
+    last12MonthBoxes: row.last12MonthBoxes,
+    tags: [row.country, row.category, row.status],
+    summary: `${row.brand} · ${row.enName}，规格 ${row.spec}，箱规 ${row.caseSpec}。`,
+    decisionNote: `状态：${row.status}；授权：${row.authorizationStatus}；中文标签：${row.labelStatus}。`,
+    image: row.imagePath,
+    status: row.status,
+    authorizationStatus: row.authorizationStatus,
+    labelStatus: row.labelStatus,
+    hsCode: row.hsCode,
+    storageRequirement: row.storageRequirement,
+  };
+}
 
 const products: Product[] = [
   {
@@ -1043,14 +1116,86 @@ function MetricCard({ icon, label, value, hint }: { icon: string; label: string;
 
 function Catalog({
   portal,
+  operatorRole,
+  productCatalog,
+  reloadProducts,
   setView,
   setSelectedId,
 }: {
   portal: Portal;
+  operatorRole: OperatorRole;
+  productCatalog: Product[];
+  reloadProducts: () => void;
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
   const isBuyer = portal === "buyer";
+  const visibleProducts = isBuyer ? productCatalog.filter((product) => product.status === "approved") : productCatalog;
+  const [productForm, setProductForm] = useState({
+    cnName: "",
+    brand: "",
+    enName: "",
+    country: "德国",
+    category: "休闲食品",
+    spec: "",
+    caseSpec: "",
+    shelfLifeMonths: "12",
+    estimatedLandedCostCny: "",
+    retailPriceBand: "",
+    grossMarginBand: "20%~30%",
+    moqBoxes: "10",
+    last12MonthBoxes: "0",
+    targetBoxes20ft: "2000",
+    hsCode: "",
+    storageRequirement: "常温干燥",
+  });
+  const [operationMessage, setOperationMessage] = useState("");
+
+  const createProduct = async () => {
+    setOperationMessage("正在提交商品资料...");
+    try {
+      const response = await fetch("/api/products/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...productForm,
+          status: "draft",
+          authorizationStatus: "pending",
+          labelStatus: "pending",
+          imagePath: "/product-assets/haribo.png",
+        }),
+      });
+      const data = (await response.json()) as { product?: ApiProduct; error?: string };
+      if (!response.ok || !data.product) throw new Error(data.error ?? "商品新增失败");
+      setOperationMessage(`商品已新增为草稿：${data.product.cnName}`);
+      setProductForm((current) => ({ ...current, cnName: "", brand: "", enName: "", spec: "", caseSpec: "", estimatedLandedCostCny: "", retailPriceBand: "", hsCode: "" }));
+      reloadProducts();
+    } catch (error) {
+      setOperationMessage(error instanceof Error ? error.message : "商品新增失败");
+    }
+  };
+
+  const updateProductStatus = async (product: Product, status: "reviewing" | "approved" | "rejected") => {
+    setOperationMessage("正在更新商品状态...");
+    try {
+      const response = await fetch("/api/products/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: product.id,
+          status,
+          authorizationStatus: status === "approved" ? "approved" : product.authorizationStatus,
+          labelStatus: status === "approved" ? "complete" : product.labelStatus,
+        }),
+      });
+      const data = (await response.json()) as { product?: ApiProduct; error?: string };
+      if (!response.ok || !data.product) throw new Error(data.error ?? "商品状态更新失败");
+      setOperationMessage(`商品状态已更新：${data.product.cnName} · ${data.product.status}`);
+      reloadProducts();
+    } catch (error) {
+      setOperationMessage(error instanceof Error ? error.message : "商品状态更新失败");
+    }
+  };
 
   return (
     <>
@@ -1063,6 +1208,41 @@ function Catalog({
           </button>
         </div>
       </section>
+
+      {!isBuyer ? (
+        <section className="panel product-admin-workflow">
+          <div className="panel-head">
+            <div>
+              <h2>商品提报与审批</h2>
+              <p>经理新增商品草稿并提交审核；总监审批通过后，采购端商品目录才可见。</p>
+            </div>
+            <button className="outline-button" type="button" onClick={reloadProducts}>刷新商品库</button>
+          </div>
+          <div className="product-create-grid">
+            <input placeholder="商品中文名" value={productForm.cnName} onChange={(event) => setProductForm({ ...productForm, cnName: event.target.value })} />
+            <input placeholder="品牌" value={productForm.brand} onChange={(event) => setProductForm({ ...productForm, brand: event.target.value })} />
+            <input placeholder="英文品名" value={productForm.enName} onChange={(event) => setProductForm({ ...productForm, enName: event.target.value })} />
+            <input placeholder="国家" value={productForm.country} onChange={(event) => setProductForm({ ...productForm, country: event.target.value })} />
+            <input placeholder="品类" value={productForm.category} onChange={(event) => setProductForm({ ...productForm, category: event.target.value })} />
+            <input placeholder="规格，例如 100g*24袋/箱" value={productForm.spec} onChange={(event) => setProductForm({ ...productForm, spec: event.target.value })} />
+            <input placeholder="箱规，例如 24 袋 / 箱" value={productForm.caseSpec} onChange={(event) => setProductForm({ ...productForm, caseSpec: event.target.value })} />
+            <input placeholder="保质期（月）" value={productForm.shelfLifeMonths} onChange={(event) => setProductForm({ ...productForm, shelfLifeMonths: event.target.value })} />
+            <input placeholder="预估到仓成本（元/箱）" value={productForm.estimatedLandedCostCny} onChange={(event) => setProductForm({ ...productForm, estimatedLandedCostCny: event.target.value })} />
+            <input placeholder="零售价带，例如 RMB 19.90-26.90 / 袋" value={productForm.retailPriceBand} onChange={(event) => setProductForm({ ...productForm, retailPriceBand: event.target.value })} />
+            <input placeholder="毛利带" value={productForm.grossMarginBand} onChange={(event) => setProductForm({ ...productForm, grossMarginBand: event.target.value })} />
+            <input placeholder="MOQ 箱数" value={productForm.moqBoxes} onChange={(event) => setProductForm({ ...productForm, moqBoxes: event.target.value })} />
+            <input placeholder="过去12个月采购箱数" value={productForm.last12MonthBoxes} onChange={(event) => setProductForm({ ...productForm, last12MonthBoxes: event.target.value })} />
+            <input placeholder="20尺柜目标箱数" value={productForm.targetBoxes20ft} onChange={(event) => setProductForm({ ...productForm, targetBoxes20ft: event.target.value })} />
+            <input placeholder="HS 编码" value={productForm.hsCode} onChange={(event) => setProductForm({ ...productForm, hsCode: event.target.value })} />
+            <input placeholder="储存要求" value={productForm.storageRequirement} onChange={(event) => setProductForm({ ...productForm, storageRequirement: event.target.value })} />
+            <button className="primary-button" type="button" onClick={createProduct} disabled={operatorRole !== "manager"}>
+              新增商品草稿
+            </button>
+          </div>
+          {operatorRole !== "manager" ? <p className="role-warning">当前为总监账号，只能审批商品，不能代替经理提报商品。</p> : null}
+          {operationMessage ? <div className="operation-result">{operationMessage}</div> : null}
+        </section>
+      ) : null}
 
       <section className="category-strip">
         {catalogCategories.map((category, index) => (
@@ -1095,7 +1275,7 @@ function Catalog({
 
         <section className="catalog-main">
           <div className="catalog-main-head">
-            <span>共 {products.length} 个商品</span>
+            <span>共 {visibleProducts.length} 个商品</span>
             <div>
               <span>排序:</span>
               <button className="field-button compact" type="button">
@@ -1111,7 +1291,7 @@ function Catalog({
           </div>
 
           <div className="catalog-grid">
-            {products.map((product) => (
+            {visibleProducts.map((product) => (
               <article className="catalog-card" key={product.id}>
                 <ProductImage product={product} />
                 <TagRow tags={[product.country, product.category]} />
@@ -1119,7 +1299,7 @@ function Catalog({
                 <p>{product.spec}</p>
                 <PriceBlock product={product} compact />
                 <PurchaseVolumeSignal product={product} compact />
-                <small>{product.moq} · 非最终成交报价</small>
+                <small>{product.moq} · {isBuyer ? "已开放采购" : `状态：${product.status ?? "draft"}`}</small>
                 <div className="catalog-card-actions">
                   <button
                     className="outline-button"
@@ -1141,6 +1321,15 @@ function Catalog({
                   >
                     {isBuyer ? "提交意向" : "维护资料"}
                   </button>
+                  {!isBuyer && operatorRole === "manager" && product.status !== "reviewing" && product.status !== "approved" ? (
+                    <button className="outline-button full" type="button" onClick={() => updateProductStatus(product, "reviewing")}>提交总监审批</button>
+                  ) : null}
+                  {!isBuyer && operatorRole === "director" && product.status === "reviewing" ? (
+                    <>
+                      <button className="primary-button full" type="button" onClick={() => updateProductStatus(product, "approved")}>审批通过并开放</button>
+                      <button className="outline-button full" type="button" onClick={() => updateProductStatus(product, "rejected")}>驳回商品</button>
+                    </>
+                  ) : null}
                 </div>
               </article>
             ))}
@@ -2617,10 +2806,27 @@ export default function Home() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [view, setView] = useState<View>("dashboard");
+  const [productCatalog, setProductCatalog] = useState<Product[]>(products);
   const [selectedId, setSelectedId] = useState(products[0].id);
-  const selectedProduct = useMemo(() => products.find((product) => product.id === selectedId) ?? products[0], [selectedId]);
+  const selectedProduct = useMemo(() => productCatalog.find((product) => product.id === selectedId) ?? productCatalog[0] ?? products[0], [productCatalog, selectedId]);
+
+  const loadProducts = () => {
+    fetch("/api/products/")
+      .then(async (response) => {
+        const data = (await response.json()) as { products?: ApiProduct[] };
+        if (response.ok && data.products) {
+          const nextProducts = data.products.map(productFromApi);
+          setProductCatalog(nextProducts.length ? nextProducts : products);
+          if (!nextProducts.some((product) => product.id === selectedId)) {
+            setSelectedId(nextProducts[0]?.id ?? products[0].id);
+          }
+        }
+      })
+      .catch(() => undefined);
+  };
 
   useEffect(() => {
+    loadProducts();
     fetch("/api/auth/me/")
       .then(async (response) => {
         const data = (await response.json()) as { user?: AuthUser | null };
@@ -2661,7 +2867,7 @@ export default function Home() {
   return (
     <AppShell activeView={view} setView={setView} portal={portal} operatorRole={operatorRole} onLogout={logout}>
       {view === "dashboard" ? <Dashboard portal={portal} operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}
-      {view === "catalog" ? <Catalog portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "catalog" ? <Catalog portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} reloadProducts={loadProducts} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "documents" ? <FileCenterPage portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "aiReview" ? <AiReviewPage operatorRole={operatorRole} setView={setView} /> : null}
       {view === "procurement" ? <ProcurementProgress portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
