@@ -28,6 +28,7 @@ test("build output includes product imagery used by the platform", () => {
 test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "app", "api", "purchase-intentions", "route.ts")).isFile());
   assert.ok(statSync(join(root, "app", "api", "products", "route.ts")).isFile());
+  assert.ok(statSync(join(root, "app", "api", "products", "import", "route.ts")).isFile());
   assert.ok(statSync(join(root, "app", "api", "files", "route.ts")).isFile());
   assert.ok(statSync(join(root, "app", "api", "auth", "login", "route.ts")).isFile());
   assert.ok(statSync(join(root, "app", "api", "documents", "route.ts")).isFile());
@@ -47,12 +48,15 @@ test("source includes real implementation entry points", () => {
 
 test("product creation creates and maintains the 20ft procurement group", () => {
   const productRoute = readFileSync(join(root, "app", "api", "products", "route.ts"), "utf8");
+  const importRoute = readFileSync(join(root, "app", "api", "products", "import", "route.ts"), "utf8");
   const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
   assert.ok(productRoute.includes("procurementGroups"), "products API must maintain procurement groups");
   assert.ok(productRoute.includes("containerType: \"20ft\""), "product creation must create a 20ft group");
   assert.ok(productRoute.includes("targetBoxes: targetBoxes20ft"), "product group target must follow the product target boxes");
   assert.ok(productRoute.includes("currentBoxes: procurementGroups.currentBoxes"), "products API must expose procurement group progress");
+  assert.ok(importRoute.includes("parseDelimited") && importRoute.includes("ensureGroup"), "product import must parse CSV/TSV and maintain procurement groups");
   assert.ok(page.includes("currentBoxes: row.currentBoxes ?? 0"), "product UI must use persisted procurement group progress");
+  assert.ok(page.includes("downloadProductTemplate") && page.includes("importProducts"), "product UI must expose import template and upload action");
 });
 
 test("order workflow enforces reviewed stage documents", () => {

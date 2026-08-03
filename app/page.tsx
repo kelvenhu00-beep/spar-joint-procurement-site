@@ -1315,6 +1315,7 @@ function Catalog({
     storageRequirement: "常温干燥",
   });
   const [operationMessage, setOperationMessage] = useState("");
+  const [importFile, setImportFile] = useState<File | null>(null);
 
   const createProduct = async () => {
     setOperationMessage("正在提交商品资料...");
@@ -1362,6 +1363,79 @@ function Catalog({
     }
   };
 
+  const downloadProductTemplate = () => {
+    const headers = [
+      "id",
+      "商品中文名",
+      "品牌",
+      "英文品名",
+      "国家",
+      "品类",
+      "规格",
+      "箱规",
+      "保质期月",
+      "预估到仓成本",
+      "零售价带",
+      "毛利带",
+      "MOQ箱数",
+      "过去12个月采购箱数",
+      "20尺柜目标箱数",
+      "HS编码",
+      "储存要求",
+      "图片路径",
+    ];
+    const sample = [
+      `sku_import_${Date.now().toString().slice(-6)}`,
+      "进口测试商品 100g",
+      "ImportBrand",
+      "Imported Test Product 100g",
+      "德国",
+      "休闲食品",
+      "100g/包",
+      "24 包/箱",
+      "12",
+      "88.5",
+      "RMB 12.90-16.90 / 包",
+      "25%~35%",
+      "10",
+      "1200",
+      "2000",
+      "19053100",
+      "常温干燥",
+      "/product-assets/haribo.png",
+    ];
+    const csv = `\uFEFF${headers.join(",")}\n${sample.map((value) => `"${String(value).replaceAll("\"", "\"\"")}"`).join(",")}`;
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "spar-product-import-template.csv";
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const importProducts = async () => {
+    if (!importFile) {
+      setOperationMessage("请先选择 CSV 文件，Excel 可另存为 CSV 后上传。");
+      return;
+    }
+    setOperationMessage("正在导入商品资料...");
+    try {
+      const formData = new FormData();
+      formData.set("file", importFile);
+      const response = await fetch("/api/products/import/", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await response.json()) as { importedCount?: number; updatedCount?: number; errorCount?: number; errors?: string[]; error?: string };
+      if (!response.ok) throw new Error(data.error ?? "商品导入失败");
+      setOperationMessage(`导入完成：新增 ${data.importedCount ?? 0} 个，更新 ${data.updatedCount ?? 0} 个，错误 ${data.errorCount ?? 0} 个${data.errors?.length ? `；${data.errors.slice(0, 2).join("；")}` : ""}`);
+      setImportFile(null);
+      reloadProducts();
+    } catch (error) {
+      setOperationMessage(error instanceof Error ? error.message : "商品导入失败");
+    }
+  };
+
   return (
     <>
       <section className="catalog-toolbar">
@@ -1403,6 +1477,15 @@ function Catalog({
             <button className="primary-button" type="button" onClick={createProduct} disabled={operatorRole !== "manager"}>
               新增商品草稿
             </button>
+          </div>
+          <div className="product-import-row">
+            <div>
+              <strong>批量导入商品</strong>
+              <span>支持 CSV/TSV；Excel 请另存为 CSV。导入后自动生成 20 尺柜成团池。</span>
+            </div>
+            <button className="outline-button" type="button" onClick={downloadProductTemplate}>下载模板</button>
+            <input type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values" onChange={(event) => setImportFile(event.target.files?.[0] ?? null)} disabled={operatorRole !== "manager"} />
+            <button className="primary-button" type="button" onClick={importProducts} disabled={operatorRole !== "manager"}>导入商品</button>
           </div>
           {operatorRole !== "manager" ? <p className="role-warning">当前为总监账号，只能审批商品，不能代替经理提报商品。</p> : null}
           {operationMessage ? <div className="operation-result">{operationMessage}</div> : null}
