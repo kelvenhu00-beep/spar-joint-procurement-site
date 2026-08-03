@@ -87,6 +87,9 @@ type ApiProduct = {
   moqBoxes: number;
   last12MonthBoxes: number;
   targetBoxes20ft: number;
+  currentBoxes: number | null;
+  targetBoxes: number | null;
+  procurementGroupStatus: string | null;
   status: string;
   authorizationStatus: string;
   labelStatus: string;
@@ -285,10 +288,10 @@ function productFromApi(row: ApiProduct): Product {
     priceBand: row.retailPriceBand,
     gross: row.grossMarginBand,
     moq: `MOQ ${row.moqBoxes} 箱起订`,
-    currentBoxes: 0,
-    targetBoxes: row.targetBoxes20ft,
+    currentBoxes: row.currentBoxes ?? 0,
+    targetBoxes: row.targetBoxes ?? row.targetBoxes20ft,
     last12MonthBoxes: row.last12MonthBoxes,
-    tags: [row.country, row.category, row.status],
+    tags: [row.country, row.category, row.procurementGroupStatus ?? row.status],
     summary: `${row.brand} · ${row.enName}，规格 ${row.spec}，箱规 ${row.caseSpec}。`,
     decisionNote: `状态：${row.status}；授权：${row.authorizationStatus}；中文标签：${row.labelStatus}。`,
     image: row.imagePath,

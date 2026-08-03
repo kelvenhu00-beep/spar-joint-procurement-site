@@ -31,7 +31,38 @@ type ProductPayload = {
 export async function GET() {
   try {
     const db = getDb();
-    const rows = await db.select().from(products).orderBy(asc(products.country), asc(products.cnName));
+    const rows = await db
+      .select({
+        id: products.id,
+        cnName: products.cnName,
+        brand: products.brand,
+        enName: products.enName,
+        country: products.country,
+        category: products.category,
+        spec: products.spec,
+        caseSpec: products.caseSpec,
+        shelfLifeMonths: products.shelfLifeMonths,
+        estimatedLandedCostCny: products.estimatedLandedCostCny,
+        retailPriceBand: products.retailPriceBand,
+        grossMarginBand: products.grossMarginBand,
+        moqBoxes: products.moqBoxes,
+        last12MonthBoxes: products.last12MonthBoxes,
+        targetBoxes20ft: products.targetBoxes20ft,
+        currentBoxes: procurementGroups.currentBoxes,
+        targetBoxes: procurementGroups.targetBoxes,
+        procurementGroupStatus: procurementGroups.status,
+        status: products.status,
+        authorizationStatus: products.authorizationStatus,
+        labelStatus: products.labelStatus,
+        hsCode: products.hsCode,
+        storageRequirement: products.storageRequirement,
+        imagePath: products.imagePath,
+        createdAt: products.createdAt,
+        updatedAt: products.updatedAt,
+      })
+      .from(products)
+      .leftJoin(procurementGroups, eq(procurementGroups.productId, products.id))
+      .orderBy(asc(products.country), asc(products.cnName));
     return Response.json({ products: rows });
   } catch (error) {
     return serverError(error);

@@ -47,9 +47,12 @@ test("source includes real implementation entry points", () => {
 
 test("product creation creates and maintains the 20ft procurement group", () => {
   const productRoute = readFileSync(join(root, "app", "api", "products", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
   assert.ok(productRoute.includes("procurementGroups"), "products API must maintain procurement groups");
   assert.ok(productRoute.includes("containerType: \"20ft\""), "product creation must create a 20ft group");
   assert.ok(productRoute.includes("targetBoxes: targetBoxes20ft"), "product group target must follow the product target boxes");
+  assert.ok(productRoute.includes("currentBoxes: procurementGroups.currentBoxes"), "products API must expose procurement group progress");
+  assert.ok(page.includes("currentBoxes: row.currentBoxes ?? 0"), "product UI must use persisted procurement group progress");
 });
 
 test("order workflow enforces reviewed stage documents", () => {
