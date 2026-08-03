@@ -2,6 +2,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { products } from "../../../db/schema";
 import { badRequest, makeId, serverError } from "../_utils";
+import { getCurrentUser } from "../_auth";
 
 type ProductPayload = {
   id?: string;
@@ -61,6 +62,10 @@ function requirePositiveInteger(value: number | string | undefined, field: strin
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUser(request);
+    if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
+    if (user.userType !== "operator_user") return Response.json({ error: "只有内部账号可以维护商品。" }, { status: 403 });
+
     const payload = (await request.json()) as ProductPayload;
     const id = payload.id?.trim() || makeId("sku");
     const db = getDb();
@@ -100,6 +105,10 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const user = await getCurrentUser(request);
+    if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
+    if (user.userType !== "operator_user") return Response.json({ error: "只有内部账号可以维护商品。" }, { status: 403 });
+
     const payload = (await request.json()) as ProductPayload;
     const id = payload.id?.trim() ?? "";
     if (!id) return badRequest("id is required");

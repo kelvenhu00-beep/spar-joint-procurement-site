@@ -2,9 +2,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { approvals, auditLogs, enterprises, procurementGroups, products, purchaseIntentions } from "../../../db/schema";
 import { badRequest, makeId, serverError } from "../_utils";
-
-const CURRENT_ENTERPRISE_ID = "ent_jiarong";
-const CURRENT_ENTERPRISE_USER_ID = "eu_jiarong_buyer";
+import { getCurrentUser } from "../_auth";
 
 type PurchaseIntentionPayload = {
   productId?: string;
@@ -21,8 +19,10 @@ type PurchaseIntentionReviewPayload = {
   comment?: string;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const user = await getCurrentUser(request);
+    if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
     const db = getDb();
     const rows = await db
       .select({
@@ -44,7 +44,9 @@ export async function GET() {
       .orderBy(desc(purchaseIntentions.submittedAt))
       .limit(50);
 
-    return Response.json({ purchaseIntentions: rows });
+    return Response.json({
+      purchaseIntentions: user?.userType === "enterprise_user" ? rows.filter((row) => row.enterpriseId === user.enterpriseId) : rows,
+    });
   } catch (error) {
     return serverError(error);
   }
@@ -52,6 +54,12 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUser(request);
+    if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
+    if (user.userType !== "enterprise_user" || !user.enterpriseId) {
+      return Response.json({ error: "只有企业采购账号可以提交采购意向。" }, { status: 403 });
+    }
+
     const payload = (await request.json()) as PurchaseIntentionPayload;
     const productId = payload.productId?.trim() ?? "";
     const quantityBoxes = Number(payload.quantityBoxes);
@@ -77,7 +85,7 @@ export async function POST(request: Request) {
     await db
       .insert(enterprises)
       .values({
-        id: CURRENT_ENTERPRISE_ID,
+        id: user.enterpriseId,
         name: "广东嘉荣超市有限公司",
         shortName: "广东嘉荣集团",
         type: "区域头部超市",
@@ -91,8 +99,8 @@ export async function POST(request: Request) {
       .values({
         id,
         productId,
-        enterpriseId: CURRENT_ENTERPRISE_ID,
-        enterpriseUserId: CURRENT_ENTERPRISE_USER_ID,
+        enterpriseId: user.enterpriseId,
+        enterpriseUserId: user.id,
         quantityBoxes,
         receivingRegion,
         expectedArrivalWindow,
@@ -110,7 +118,7 @@ export async function POST(request: Request) {
     await db.insert(auditLogs).values({
       id: makeId("audit"),
       actorType: "enterprise_user",
-      actorId: CURRENT_ENTERPRISE_USER_ID,
+      actorId: user.id,
       action: "purchase_intention.submitted",
       targetType: "purchase_intention",
       targetId: id,
@@ -125,6 +133,9 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const user = await getCurrentUser(request);
+    if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
+
     const payload = (await request.json()) as PurchaseIntentionReviewPayload;
     const id = payload.id?.trim() ?? "";
     const action = payload.action;
@@ -138,6 +149,16 @@ export async function PATCH(request: Request) {
     const db = getDb();
     const [intention] = await db.select().from(purchaseIntentions).where(eq(purchaseIntentions.id, id)).limit(1);
     if (!intention) return badRequest("purchase intention does not exist");
+
+    if (user.userType === "enterprise_user" && action !== "withdraw") {
+      return Response.json({ error: "企业账号只能撤回本企业采购意向。" }, { status: 403 });
+    }
+    if (user.userType === "operator_user" && actorRole !== user.role) {
+      return Response.json({ error: "请求角色与当前登录账号不一致。" }, { status: 403 });
+    }
+    if (user.userType === "enterprise_user" && intention.enterpriseId !== user.enterpriseId) {
+      return Response.json({ error: "不能处理其他企业的采购意向。" }, { status: 403 });
+    }
 
     if (action === "submit_for_director" && actorRole !== "manager") {
       return badRequest("only manager can submit for director review");
@@ -172,7 +193,7 @@ export async function PATCH(request: Request) {
         id: makeId("appr"),
         targetType: "purchase_intention",
         targetId: id,
-        requestedByUserId: "ou_manager_liu",
+        requestedByUserId: user.id,
         requiredRole: "director",
         status: "pending",
         comment,
@@ -196,7 +217,7 @@ export async function PATCH(request: Request) {
         .update(approvals)
         .set({
           status: "approved",
-          approverUserId: "ou_director_chen",
+          approverUserId: user.id,
           comment,
           decidedAt: sql`CURRENT_TIMESTAMP`,
         })
@@ -206,7 +227,7 @@ export async function PATCH(request: Request) {
     await db.insert(auditLogs).values({
       id: makeId("audit"),
       actorType: actorRole === "buyer" ? "enterprise_user" : "operator_user",
-      actorId: actorRole === "buyer" ? CURRENT_ENTERPRISE_USER_ID : actorRole === "director" ? "ou_director_chen" : "ou_manager_liu",
+      actorId: user.id,
       action: `purchase_intention.${action}`,
       targetType: "purchase_intention",
       targetId: id,

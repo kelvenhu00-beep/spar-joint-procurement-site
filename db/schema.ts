@@ -18,7 +18,12 @@ export const enterpriseUsers = sqliteTable("enterprise_users", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   role: text("role").notNull(),
+  passwordHash: text("password_hash"),
+  passwordSalt: text("password_salt"),
+  forcePasswordReset: integer("force_password_reset", { mode: "boolean" }).notNull().default(true),
   status: text("status").notNull().default("active"),
+  passwordUpdatedAt: text("password_updated_at"),
+  lastLoginAt: text("last_login_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   uniqueIndex("enterprise_users_email_unique").on(table.email),
@@ -30,7 +35,12 @@ export const operatorUsers = sqliteTable("operator_users", {
   name: text("name").notNull(),
   email: text("email").notNull(),
   role: text("role").notNull(),
+  passwordHash: text("password_hash"),
+  passwordSalt: text("password_salt"),
+  forcePasswordReset: integer("force_password_reset", { mode: "boolean" }).notNull().default(true),
   status: text("status").notNull().default("active"),
+  passwordUpdatedAt: text("password_updated_at"),
+  lastLoginAt: text("last_login_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   uniqueIndex("operator_users_email_unique").on(table.email),
@@ -132,6 +142,51 @@ export const fileUploads = sqliteTable("file_uploads", {
   index("file_uploads_product_id_idx").on(table.productId),
   index("file_uploads_business_no_idx").on(table.businessNo),
   index("file_uploads_manual_review_status_idx").on(table.manualReviewStatus),
+]);
+
+export const authSessions = sqliteTable("auth_sessions", {
+  id: text("id").primaryKey(),
+  userType: text("user_type").notNull(),
+  userId: text("user_id").notNull(),
+  sessionHash: text("session_hash").notNull(),
+  userAgent: text("user_agent"),
+  ipAddress: text("ip_address"),
+  expiresAt: text("expires_at").notNull(),
+  revokedAt: text("revoked_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("auth_sessions_session_hash_unique").on(table.sessionHash),
+  index("auth_sessions_user_idx").on(table.userType, table.userId),
+  index("auth_sessions_expires_at_idx").on(table.expiresAt),
+]);
+
+export const businessDocuments = sqliteTable("business_documents", {
+  id: text("id").primaryKey(),
+  documentNo: text("document_no").notNull(),
+  documentType: text("document_type").notNull(),
+  productId: text("product_id").references(() => products.id),
+  enterpriseId: text("enterprise_id").references(() => enterprises.id),
+  purchaseIntentionId: text("purchase_intention_id").references(() => purchaseIntentions.id),
+  fileUploadId: text("file_upload_id").references(() => fileUploads.id),
+  stage: text("stage").notNull(),
+  title: text("title").notNull(),
+  status: text("status").notNull().default("draft"),
+  visibility: text("visibility").notNull().default("internal"),
+  amountCny: real("amount_cny"),
+  currency: text("currency"),
+  createdByUserType: text("created_by_user_type").notNull(),
+  createdByUserId: text("created_by_user_id").notNull(),
+  reviewedByUserId: text("reviewed_by_user_id"),
+  reviewedAt: text("reviewed_at"),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("business_documents_document_no_unique").on(table.documentNo),
+  index("business_documents_product_id_idx").on(table.productId),
+  index("business_documents_enterprise_id_idx").on(table.enterpriseId),
+  index("business_documents_status_idx").on(table.status),
+  index("business_documents_stage_idx").on(table.stage),
 ]);
 
 export const approvals = sqliteTable("approvals", {

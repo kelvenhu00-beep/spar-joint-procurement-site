@@ -1,8 +1,9 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getDb } from "../../../db";
-import { auditLogs, fileUploads, products, workflowFileRequirements } from "../../../db/schema";
+import { auditLogs, businessDocuments, fileUploads, products, workflowFileRequirements } from "../../../db/schema";
 import { badRequest, makeId, serverError } from "../_utils";
+import { getCurrentUser } from "../_auth";
 
 type FilesEnv = {
   FILES?: R2Bucket;
@@ -21,6 +22,9 @@ function safeFileName(name: string) {
 
 export async function GET(request: Request) {
   try {
+    const user = await getCurrentUser(request);
+    if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
+
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId")?.trim();
     const db = getDb();
@@ -43,6 +47,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const user = await getCurrentUser(request);
+    if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
+    if (user.userType !== "operator_user" || user.role !== "manager") {
+      return Response.json({ error: "只有商品运营经理可以上传流程文件。" }, { status: 403 });
+    }
+
     const bucket = (env as FilesEnv).FILES;
     if (!bucket) {
       return Response.json({ error: "文件存储 FILES 未配置，无法保存真实文件。" }, { status: 500 });
@@ -109,14 +119,29 @@ export async function POST(request: Request) {
         aiReviewStatus: "pending",
         aiReviewSummary: "已上传，等待 AI 初审。",
         manualReviewStatus: "pending",
-        uploadedByUserId: "ou_manager_liu",
+        uploadedByUserId: user.id,
       })
       .returning();
+
+    await db.insert(businessDocuments).values({
+      id: makeId("doc"),
+      documentNo: `DOC-${Date.now()}-${uploadId.slice(-6)}`,
+      documentType: requiredFileType,
+      productId,
+      fileUploadId: uploadId,
+      stage,
+      title: `${product.cnName} · ${requiredFileType}`,
+      status: "ai_review",
+      visibility: stage.includes("二次确认") || stage.includes("合同") || stage.includes("交付") ? "buyer_visible_after_review" : "internal",
+      createdByUserType: "operator_user",
+      createdByUserId: user.id,
+      metadataJson: JSON.stringify({ businessNo, originalFileName }),
+    });
 
     await db.insert(auditLogs).values({
       id: makeId("audit"),
       actorType: "operator_user",
-      actorId: "ou_manager_liu",
+      actorId: user.id,
       action: "file.uploaded",
       targetType: "file_upload",
       targetId: uploadId,
@@ -131,6 +156,10 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const user = await getCurrentUser(request);
+    if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
+    if (user.userType !== "operator_user") return Response.json({ error: "只有内部账号可以审核文件。" }, { status: 403 });
+
     const payload = (await request.json()) as FileReviewPayload;
     const id = payload.id?.trim() ?? "";
     const action = payload.action;
@@ -144,6 +173,7 @@ export async function PATCH(request: Request) {
     if ((action === "approve" || action === "request_changes" || action === "reject") && actorRole !== "director") {
       return badRequest("only director can approve, request changes or reject files");
     }
+    if (actorRole !== user.role) return Response.json({ error: "请求角色与当前登录账号不一致。" }, { status: 403 });
 
     const aiStatus = action === "ai_pass" ? "passed" : action === "ai_warning" ? "warning" : undefined;
     const manualStatus =
@@ -165,7 +195,7 @@ export async function PATCH(request: Request) {
     await db.insert(auditLogs).values({
       id: makeId("audit"),
       actorType: "operator_user",
-      actorId: actorRole === "director" ? "ou_director_chen" : "ou_manager_liu",
+      actorId: user.id,
       action: `file.${action}`,
       targetType: "file_upload",
       targetId: id,

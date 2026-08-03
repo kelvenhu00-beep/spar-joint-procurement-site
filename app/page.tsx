@@ -32,6 +32,15 @@ type UserProfile = {
   authority: string;
 };
 
+type AuthUser = {
+  userType: "enterprise_user" | "operator_user";
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  enterpriseId?: string;
+};
+
 type Product = {
   id: string;
   cnName: string;
@@ -84,6 +93,35 @@ type FileUploadRow = {
   manualReviewStatus: string;
   uploadedByUserId: string;
   uploadedAt: string;
+};
+
+type BusinessDocumentRow = {
+  id: string;
+  documentNo: string;
+  documentType: string;
+  productId: string | null;
+  productName: string | null;
+  enterpriseId: string | null;
+  enterpriseName: string | null;
+  purchaseIntentionId: string | null;
+  stage: string;
+  title: string;
+  status: string;
+  visibility: string;
+  amountCny: number | null;
+  currency: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type AccountListRow = {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  enterpriseId?: string;
+  hasPassword: boolean;
 };
 
 const products: Product[] = [
@@ -647,10 +685,71 @@ function ProductImage({ product, size = "card" }: { product: Product; size?: "ca
   );
 }
 
-function LoginPage({ onLogin }: { onLogin: (portal: Portal, operatorRole: OperatorRole) => void }) {
+function LoginPage({ onLogin }: { onLogin: (user: AuthUser) => void }) {
   const [selectedPortal, setSelectedPortal] = useState<Portal>("buyer");
   const [selectedOperatorRole, setSelectedOperatorRole] = useState<OperatorRole>("manager");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loginMessage, setLoginMessage] = useState("");
+  const [setupState, setSetupState] = useState<{ checked: boolean; initialized: boolean }>({ checked: false, initialized: true });
+  const [setupKey, setSetupKey] = useState("");
+  const [setupName, setSetupName] = useState("系统管理员");
+  const [setupEmail, setSetupEmail] = useState("");
+  const [setupPassword, setSetupPassword] = useState("");
   const selectedProfile = getProfile(selectedPortal, selectedOperatorRole);
+
+  useEffect(() => {
+    fetch("/api/setup/")
+      .then(async (response) => {
+        const data = (await response.json()) as { initialized?: boolean };
+        setSetupState({ checked: true, initialized: Boolean(data.initialized) });
+      })
+      .catch(() => setSetupState({ checked: true, initialized: true }));
+  }, []);
+
+  const submitLogin = async () => {
+    setLoginMessage("正在登录...");
+    try {
+      const response = await fetch("/api/auth/login/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ portal: selectedPortal, email, password }),
+      });
+      const data = (await response.json()) as { user?: AuthUser; error?: string };
+      if (!response.ok || !data.user) throw new Error(data.error ?? "登录失败");
+      setLoginMessage("");
+      onLogin(data.user);
+    } catch (error) {
+      setLoginMessage(error instanceof Error ? error.message : "登录失败");
+    }
+  };
+
+  const submitSetup = async () => {
+    setLoginMessage("正在初始化管理员...");
+    try {
+      const response = await fetch("/api/setup/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          setupKey,
+          name: setupName,
+          email: setupEmail,
+          password: setupPassword,
+          role: "director",
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "初始化失败");
+      setSetupState({ checked: true, initialized: true });
+      setSelectedPortal("operator");
+      setSelectedOperatorRole("director");
+      setEmail(setupEmail);
+      setPassword("");
+      setLoginMessage("管理员已初始化，请使用刚设置的邮箱和密码登录。");
+    } catch (error) {
+      setLoginMessage(error instanceof Error ? error.message : "初始化失败");
+    }
+  };
 
   return (
     <main className="login-page">
@@ -666,6 +765,17 @@ function LoginPage({ onLogin }: { onLogin: (portal: Portal, operatorRole: Operat
       <section className="login-card">
         <h1>登录 SPAR 联采系统</h1>
         <p>企业采购端和平台运营后台分离，登录后按角色显示对应功能。</p>
+        {setupState.checked && !setupState.initialized ? (
+          <div className="setup-panel">
+            <strong>首次初始化管理员</strong>
+            <span>系统尚未创建管理员账号。请输入部署时配置的初始化密钥，创建第一个总监账号。</span>
+            <label><span>初始化密钥</span><input value={setupKey} onChange={(event) => setSetupKey(event.target.value)} type="password" /></label>
+            <label><span>管理员姓名</span><input value={setupName} onChange={(event) => setSetupName(event.target.value)} /></label>
+            <label><span>管理员邮箱</span><input value={setupEmail} onChange={(event) => setSetupEmail(event.target.value)} /></label>
+            <label><span>管理员密码</span><input value={setupPassword} onChange={(event) => setSetupPassword(event.target.value)} type="password" /></label>
+            <button className="primary-button full" type="button" onClick={submitSetup}>初始化管理员</button>
+          </div>
+        ) : null}
         <div className="login-role-tabs">
           <button className={selectedPortal === "buyer" ? "active" : ""} type="button" onClick={() => setSelectedPortal("buyer")}>
             企业采购端
@@ -699,11 +809,11 @@ function LoginPage({ onLogin }: { onLogin: (portal: Portal, operatorRole: Operat
         </div>
         <label>
           <span>账号</span>
-          <input placeholder={selectedPortal === "buyer" ? "企业员工账号 / 邮箱" : "运营后台账号 / 邮箱"} />
+          <input value={email} onChange={(event) => setEmail(event.target.value)} placeholder={selectedPortal === "buyer" ? "企业员工账号 / 邮箱" : "运营后台账号 / 邮箱"} />
         </label>
         <label>
           <span>密码</span>
-          <input placeholder="请输入密码" type="password" />
+          <input value={password} onChange={(event) => setPassword(event.target.value)} placeholder="请输入密码" type="password" />
         </label>
         <div className="login-options">
           <label>
@@ -711,11 +821,12 @@ function LoginPage({ onLogin }: { onLogin: (portal: Portal, operatorRole: Operat
           </label>
           <button type="button">忘记密码?</button>
         </div>
-        <button className="primary-button full" type="button" onClick={() => onLogin(selectedPortal, selectedOperatorRole)}>
+        {loginMessage ? <div className="login-message">{loginMessage}</div> : null}
+        <button className="primary-button full" type="button" onClick={submitLogin}>
           进入{selectedProfile.shortName}
         </button>
         <small>
-          当前为内测账号入口。正式上线前需接入企业员工账号认证、密码策略和登录审计。
+          登录会创建服务端会话，业务接口会按企业账号、经理账号、总监账号分别校验权限。
         </small>
       </section>
       <footer className="login-footer">
@@ -1370,6 +1481,24 @@ function FileCenterPage({
 }) {
   const isBuyer = portal === "buyer";
   const files = isBuyer ? buyerFileItems : operatorFileItems;
+  const [documents, setDocuments] = useState<BusinessDocumentRow[]>([]);
+  const [documentState, setDocumentState] = useState<"loading" | "ready" | "error">("loading");
+
+  const loadDocuments = () => {
+    setDocumentState("loading");
+    fetch("/api/documents/")
+      .then(async (response) => {
+        const data = (await response.json()) as { documents?: BusinessDocumentRow[]; error?: string };
+        if (!response.ok) throw new Error(data.error ?? "单据加载失败");
+        setDocuments(data.documents ?? []);
+        setDocumentState("ready");
+      })
+      .catch(() => setDocumentState("error"));
+  };
+
+  useEffect(() => {
+    loadDocuments();
+  }, []);
   const metrics = isBuyer
     ? [
         ["可下载文件", "18", "商品资料、意向、合同、付款、签收"],
@@ -1411,13 +1540,32 @@ function FileCenterPage({
         <article className="panel document-table-panel">
           <div className="panel-head">
             <div>
-              <h2>{isBuyer ? "我的商品文件" : "按商品处理文件"}</h2>
-              <p>{isBuyer ? "文件按照商品和采购阶段归档" : "不能从总入口批量上传；每份文件必须绑定商品、阶段和责任岗位"}</p>
+              <h2>{isBuyer ? "我的业务单据" : "业务单据台账"}</h2>
+              <p>{isBuyer ? "只显示本企业可见单据" : "真实单据记录，文件上传后会自动形成单据台账"}</p>
             </div>
             <div className="file-tools">
               <input placeholder="搜索商品、阶段、订单号" />
-              <button className="outline-button" type="button">筛选</button>
+              <button className="outline-button" type="button" onClick={loadDocuments}>刷新</button>
             </div>
+          </div>
+          <div className="business-document-list">
+            {documentState === "loading" ? <div className="table-state">正在加载真实单据...</div> : null}
+            {documentState === "error" ? <div className="table-state error">单据加载失败，请确认账号权限。</div> : null}
+            {documentState === "ready" && documents.length === 0 ? <div className="table-state">暂无业务单据。后台上传文件或生成合同后会出现在这里。</div> : null}
+            {documents.map((document) => (
+              <article className="business-document-row" key={document.id}>
+                <div>
+                  <strong>{document.title}</strong>
+                  <span>{document.documentNo} · {document.documentType} · {document.stage}</span>
+                </div>
+                <div>
+                  <span>{document.productName ?? document.productId ?? "未绑定商品"}</span>
+                  <small>{document.enterpriseName ?? document.enterpriseId ?? "内部单据"}</small>
+                </div>
+                <StatusPill status={document.status} />
+                <button className="outline-button" type="button">查看</button>
+              </article>
+            ))}
           </div>
           <div className="file-list">
             {(isBuyer ? files : products.slice(0, 6).map((product, index) => {
@@ -1804,6 +1952,57 @@ function RankPanel({ title, items }: { title: string; items: string[] }) {
 }
 
 function ClientsPage() {
+  const [enterpriseUsers, setEnterpriseUsers] = useState<AccountListRow[]>([]);
+  const [operatorUsers, setOperatorUsers] = useState<AccountListRow[]>([]);
+  const [accountState, setAccountState] = useState("");
+  const [newAccount, setNewAccount] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "buyer_manager",
+    enterpriseId: "ent_jiarong",
+    enterpriseName: "广东嘉荣超市有限公司",
+    enterpriseShortName: "广东嘉荣集团",
+    enterpriseType: "区域头部超市",
+    enterpriseRegion: "华南",
+  });
+
+  const loadAccounts = () => {
+    fetch("/api/users/")
+      .then(async (response) => {
+        const data = (await response.json()) as { enterpriseUsers?: AccountListRow[]; operatorUsers?: AccountListRow[]; error?: string };
+        if (!response.ok) throw new Error(data.error ?? "账号加载失败");
+        setEnterpriseUsers(data.enterpriseUsers ?? []);
+        setOperatorUsers(data.operatorUsers ?? []);
+      })
+      .catch((error) => setAccountState(error instanceof Error ? error.message : "账号加载失败"));
+  };
+
+  useEffect(() => {
+    loadAccounts();
+  }, []);
+
+  const createEnterpriseUser = async () => {
+    setAccountState("正在创建企业采购账号...");
+    try {
+      const response = await fetch("/api/users/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userType: "enterprise_user",
+          ...newAccount,
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "账号创建失败");
+      setAccountState("企业采购账号已创建。");
+      setNewAccount((current) => ({ ...current, name: "", email: "", password: "" }));
+      loadAccounts();
+    } catch (error) {
+      setAccountState(error instanceof Error ? error.message : "账号创建失败");
+    }
+  };
+
   const clients = [
     ["广东嘉荣超市有限公司", "华南区域头部超市", "合作中", "★★★★★", "采购负责人", "客户经理已登记", "¥ 5,680,000", "2026-05-20"],
     ["家家悦集团股份有限公司", "山东区域连锁超市", "合作中", "★★★★★", "进口食品负责人", "客户经理已登记", "¥ 4,320,000", "2026-05-18"],
@@ -1816,6 +2015,43 @@ function ClientsPage() {
   return (
     <>
       <PageTitle title="企业客户" subtitle="管理和维护企业客户信息，建立长期合作关系" />
+      <section className="panel account-admin-panel">
+        <div className="panel-head">
+          <div>
+            <h2>企业采购账号管理</h2>
+            <p>为区域超市企业创建员工账号，采购端登录后只能查看本企业数据。</p>
+          </div>
+          <button className="outline-button" type="button" onClick={loadAccounts}>刷新账号</button>
+        </div>
+        <div className="account-create-grid">
+          <input placeholder="员工姓名" value={newAccount.name} onChange={(event) => setNewAccount({ ...newAccount, name: event.target.value })} />
+          <input placeholder="登录邮箱" value={newAccount.email} onChange={(event) => setNewAccount({ ...newAccount, email: event.target.value })} />
+          <input placeholder="初始密码，至少10位" type="password" value={newAccount.password} onChange={(event) => setNewAccount({ ...newAccount, password: event.target.value })} />
+          <input placeholder="企业ID" value={newAccount.enterpriseId} onChange={(event) => setNewAccount({ ...newAccount, enterpriseId: event.target.value })} />
+          <input placeholder="企业全称" value={newAccount.enterpriseName} onChange={(event) => setNewAccount({ ...newAccount, enterpriseName: event.target.value })} />
+          <input placeholder="企业简称" value={newAccount.enterpriseShortName} onChange={(event) => setNewAccount({ ...newAccount, enterpriseShortName: event.target.value })} />
+          <button className="primary-button" type="button" onClick={createEnterpriseUser}>创建采购账号</button>
+        </div>
+        {accountState ? <div className="operation-result">{accountState}</div> : null}
+        <div className="account-list-grid">
+          <article>
+            <h3>企业员工账号</h3>
+            {enterpriseUsers.map((user) => (
+              <div className="account-line" key={user.id}>
+                <span>{user.name}</span><small>{user.email} · {user.enterpriseId} · {user.role}</small><StatusPill status={user.hasPassword ? "可登录" : "未设置密码"} />
+              </div>
+            ))}
+          </article>
+          <article>
+            <h3>内部后台账号</h3>
+            {operatorUsers.map((user) => (
+              <div className="account-line" key={user.id}>
+                <span>{user.name}</span><small>{user.email} · {user.role}</small><StatusPill status={user.hasPassword ? "可登录" : "未设置密码"} />
+              </div>
+            ))}
+          </article>
+        </div>
+      </section>
       <section className="metric-strip client-metrics">
         <MetricCard icon="♙" label="客户总数" value="128" hint="较上月 +12 ↑" />
         <MetricCard icon="▧" label="活跃客户" value="89" hint="活跃率 69.5%" />
@@ -2378,11 +2614,28 @@ function TrustCard({ icon, title, text }: { icon: string; title: string; text: s
 export default function Home() {
   const [portal, setPortalState] = useState<Portal | null>(null);
   const [operatorRole, setOperatorRole] = useState<OperatorRole>("manager");
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [view, setView] = useState<View>("dashboard");
   const [selectedId, setSelectedId] = useState(products[0].id);
   const selectedProduct = useMemo(() => products.find((product) => product.id === selectedId) ?? products[0], [selectedId]);
 
-  const setPortal = (nextPortal: Portal, nextOperatorRole: OperatorRole = operatorRole) => {
+  useEffect(() => {
+    fetch("/api/auth/me/")
+      .then(async (response) => {
+        const data = (await response.json()) as { user?: AuthUser | null };
+        if (response.ok && data.user) {
+          enterWithUser(data.user);
+        }
+        setAuthChecked(true);
+      })
+      .catch(() => setAuthChecked(true));
+  }, []);
+
+  const enterWithUser = (user: AuthUser) => {
+    setAuthUser(user);
+    const nextPortal: Portal = user.userType === "enterprise_user" ? "buyer" : "operator";
+    const nextOperatorRole: OperatorRole = user.role === "director" ? "director" : "manager";
     setPortalState(nextPortal);
     if (nextPortal === "operator") {
       setOperatorRole(nextOperatorRole);
@@ -2390,13 +2643,19 @@ export default function Home() {
     setView("dashboard");
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await fetch("/api/auth/logout/", { method: "POST" }).catch(() => undefined);
+    setAuthUser(null);
     setPortalState(null);
     setView("dashboard");
   };
 
+  if (!authChecked) {
+    return <main className="login-page"><section className="login-card"><h1>正在检查登录状态</h1><p>请稍候...</p></section></main>;
+  }
+
   if (!portal || view === "login") {
-    return <LoginPage onLogin={setPortal} />;
+    return <LoginPage onLogin={enterWithUser} />;
   }
 
   return (

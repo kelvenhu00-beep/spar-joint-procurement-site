@@ -3463,6 +3463,32 @@ label span {
   background: var(--color-primary-50);
 }
 
+.setup-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-primary-100);
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-50);
+}
+
+.setup-panel strong {
+  color: var(--color-primary-800);
+}
+
+.setup-panel > span,
+.login-message {
+  color: var(--color-gray-600);
+  font-size: var(--font-body-sm);
+}
+
+.login-message {
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-gray-50);
+  font-weight: 600;
+}
+
 .login-context span,
 .login-context small {
   color: var(--color-gray-500);
@@ -3804,6 +3830,85 @@ label span {
   font-size: var(--font-h3);
 }
 
+.business-document-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.business-document-row {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr auto auto;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--color-white);
+}
+
+.business-document-row div {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.business-document-row span,
+.business-document-row small {
+  color: var(--color-gray-600);
+}
+
+.account-admin-panel {
+  margin-bottom: var(--space-5);
+}
+
+.account-create-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.account-create-grid input {
+  min-height: 40px;
+  border: 1px solid var(--color-gray-300);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-3);
+  font: inherit;
+}
+
+.account-list-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.account-list-grid article {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--color-gray-50);
+}
+
+.account-list-grid h3 {
+  margin: 0;
+  font-size: var(--font-h3);
+}
+
+.account-line {
+  display: grid;
+  grid-template-columns: 0.8fr 1.4fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 40px;
+  border-top: 1px solid var(--color-gray-200);
+}
+
+.account-line small {
+  color: var(--color-gray-500);
+}
+
 .product-upload-history p {
   margin: var(--space-2) 0 0;
   color: var(--color-gray-600);
@@ -3841,6 +3946,13 @@ label span {
   }
 
   .uploaded-file-line {
+    grid-template-columns: 1fr;
+  }
+
+  .business-document-row,
+  .account-create-grid,
+  .account-list-grid,
+  .account-line {
     grid-template-columns: 1fr;
   }
 }
