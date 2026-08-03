@@ -189,6 +189,53 @@ export const businessDocuments = sqliteTable("business_documents", {
   index("business_documents_stage_idx").on(table.stage),
 ]);
 
+export const procurementOrders = sqliteTable("procurement_orders", {
+  id: text("id").primaryKey(),
+  orderNo: text("order_no").notNull(),
+  productId: text("product_id").notNull().references(() => products.id),
+  enterpriseId: text("enterprise_id").notNull().references(() => enterprises.id),
+  purchaseIntentionId: text("purchase_intention_id").references(() => purchaseIntentions.id),
+  quantityBoxes: integer("quantity_boxes").notNull(),
+  containerType: text("container_type").notNull().default("20ft"),
+  currentStage: text("current_stage").notNull().default("second_confirmation"),
+  status: text("status").notNull().default("second_confirmation"),
+  confirmedUnitCostCny: real("confirmed_unit_cost_cny"),
+  totalAmountCny: real("total_amount_cny"),
+  receivingRegion: text("receiving_region").notNull(),
+  expectedArrivalWindow: text("expected_arrival_window").notNull(),
+  etd: text("etd"),
+  eta: text("eta"),
+  containerNo: text("container_no"),
+  sealNo: text("seal_no"),
+  customsDeclarationNo: text("customs_declaration_no"),
+  createdByUserId: text("created_by_user_id").notNull(),
+  updatedByUserId: text("updated_by_user_id"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("procurement_orders_order_no_unique").on(table.orderNo),
+  index("procurement_orders_product_id_idx").on(table.productId),
+  index("procurement_orders_enterprise_id_idx").on(table.enterpriseId),
+  index("procurement_orders_status_idx").on(table.status),
+  index("procurement_orders_stage_idx").on(table.currentStage),
+]);
+
+export const procurementOrderEvents = sqliteTable("procurement_order_events", {
+  id: text("id").primaryKey(),
+  orderId: text("order_id").notNull().references(() => procurementOrders.id),
+  fromStage: text("from_stage"),
+  toStage: text("to_stage").notNull(),
+  action: text("action").notNull(),
+  actorType: text("actor_type").notNull(),
+  actorId: text("actor_id").notNull(),
+  note: text("note").notNull().default(""),
+  metadataJson: text("metadata_json").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("procurement_order_events_order_id_idx").on(table.orderId),
+  index("procurement_order_events_to_stage_idx").on(table.toStage),
+]);
+
 export const approvals = sqliteTable("approvals", {
   id: text("id").primaryKey(),
   targetType: text("target_type").notNull(),

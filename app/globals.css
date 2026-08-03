@@ -2513,10 +2513,37 @@ label span {
   border-bottom: 0;
 }
 
+.data-table.procurement .table-state {
+  grid-column: 1 / -1;
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  color: var(--color-gray-600);
+  background: var(--color-white);
+  font-weight: 500;
+}
+
+.data-table.procurement .table-state.error {
+  color: #991b1b;
+  background: #fef2f2;
+}
+
 .project-cell {
   flex-direction: row !important;
   align-items: center;
   justify-content: flex-start !important;
+}
+
+.fallback-product-icon {
+  width: 46px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-lg);
+  background: var(--color-primary-50);
+  color: var(--color-primary-700);
+  font-weight: 700;
 }
 
 .project-cell span,

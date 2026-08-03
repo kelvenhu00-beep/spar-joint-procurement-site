@@ -31,8 +31,10 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "app", "api", "files", "route.ts")).isFile());
   assert.ok(statSync(join(root, "app", "api", "auth", "login", "route.ts")).isFile());
   assert.ok(statSync(join(root, "app", "api", "documents", "route.ts")).isFile());
+  assert.ok(statSync(join(root, "app", "api", "orders", "route.ts")).isFile());
   assert.ok(statSync(join(root, "app", "api", "users", "route.ts")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0000_daffy_stark_industries.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0001_seed_initial_data.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0002_accounts_documents_sessions.sql")).isFile());
+  assert.ok(statSync(join(root, "drizzle", "0003_procurement_orders_workflow.sql")).isFile());
 });

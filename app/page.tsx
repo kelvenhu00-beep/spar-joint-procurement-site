@@ -143,6 +143,34 @@ type BusinessDocumentRow = {
   updatedAt: string;
 };
 
+type ProcurementOrderRow = {
+  id: string;
+  orderNo: string;
+  productId: string;
+  productName: string | null;
+  enterpriseId: string;
+  enterpriseName: string | null;
+  purchaseIntentionId: string | null;
+  quantityBoxes: number;
+  containerType: string;
+  currentStage: string;
+  stageLabel: string;
+  status: string;
+  progress: number;
+  nextStage: string | null;
+  confirmedUnitCostCny: number | null;
+  totalAmountCny: number | null;
+  receivingRegion: string;
+  expectedArrivalWindow: string;
+  etd: string | null;
+  eta: string | null;
+  containerNo: string | null;
+  sealNo: string | null;
+  customsDeclarationNo: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type AccountListRow = {
   id: string;
   name: string;
@@ -1424,22 +1452,94 @@ function FilterGroup({ title, items, hasSearch = false }: { title: string; items
 
 function ProcurementProgress({
   portal,
+  operatorRole,
+  productCatalog,
   setView,
   setSelectedId,
 }: {
   portal: Portal;
+  operatorRole: OperatorRole;
+  productCatalog: Product[];
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
 }) {
   const isBuyer = portal === "buyer";
-  const rows = [
-    ["曼纳原味榛子威化 75g", "SPAR20260524001", "德国奥地利供应商", "清关中", 83, "2026-06-05", "进行中"],
-    ["哈瑞宝金熊软糖 175g", "SPAR20260523002", "HARIBO GmbH & Co. KG", "运输中", 62, "2026-06-08", "进行中"],
-    ["Walker's 沃克斯黄油酥饼 250g", "SPAR20260520003", "Walker's Shortbread Ltd.", "已到港", 90, "2026-06-03", "异常"],
-    ["瑞特斯波德巧克力 100g", "SPAR20260518004", "Ritter Sport GmbH", "已完成", 100, "2026-05-25", "已完成"],
-    ["Lavazza 拉瓦萨咖啡粉 250g", "SPAR20260516005", "Luigi Lavazza S.p.A.", "采购中", 35, "2026-06-12", "进行中"],
-    ["费列罗榛果威化巧克力 48粒", "SPAR20260514006", "Ferrero S.p.A.", "需求确认", 15, "2026-06-15", "进行中"],
-  ];
+  const [orders, setOrders] = useState<ProcurementOrderRow[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [actionState, setActionState] = useState("");
+
+  const loadOrders = () => {
+    setLoadState("loading");
+    fetch("/api/orders/")
+      .then(async (response) => {
+        const data = (await response.json()) as { orders?: ProcurementOrderRow[]; error?: string };
+        if (!response.ok) throw new Error(data.error ?? "采购项目加载失败");
+        setOrders(data.orders ?? []);
+        setLoadState("ready");
+      })
+      .catch(() => setLoadState("error"));
+  };
+
+  useEffect(() => {
+    loadOrders();
+  }, []);
+
+  const createOrderFromConfirmedIntention = async () => {
+    setActionState("正在查找已确认采购意向...");
+    try {
+      const intentionResponse = await fetch("/api/purchase-intentions/");
+      const intentionData = (await intentionResponse.json()) as { purchaseIntentions?: PurchaseIntentionRow[]; error?: string };
+      if (!intentionResponse.ok) throw new Error(intentionData.error ?? "采购意向加载失败");
+      const confirmedIntention = (intentionData.purchaseIntentions ?? []).find((row) => row.status === "confirmed");
+      if (!confirmedIntention) {
+        setActionState("暂无 confirmed 状态的采购意向。请先由总监在意向审核中审批通过。");
+        return;
+      }
+
+      const response = await fetch("/api/orders/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ purchaseIntentionId: confirmedIntention.id }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "采购项目创建失败");
+      setActionState("采购项目已生成，系统已自动预留二次确认阶段单据。");
+      loadOrders();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "采购项目创建失败");
+    }
+  };
+
+  const advanceOrder = async (order: ProcurementOrderRow) => {
+    if (!order.nextStage) {
+      setActionState("该采购项目已经到达最后阶段。");
+      return;
+    }
+    setActionState(`正在推进 ${order.orderNo}...`);
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "advance",
+          nextStage: order.nextStage,
+          note: `${operatorRole === "director" ? "总监" : "经理"}在履约看板推进阶段。`,
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "阶段推进失败");
+      setActionState("阶段已推进，并按新阶段生成需要上传或审核的单据槽位。");
+      loadOrders();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "阶段推进失败");
+    }
+  };
+
+  const inProgressCount = orders.filter((order) => order.status !== "settlement" && order.status !== "exception").length;
+  const doneCount = orders.filter((order) => order.status === "settlement").length;
+  const exceptionCount = orders.filter((order) => order.status === "exception").length;
+  const averageProgress = orders.length ? Math.round(orders.reduce((sum, order) => sum + order.progress, 0) / orders.length) : 0;
 
   return (
     <>
@@ -1448,12 +1548,12 @@ function ProcurementProgress({
         subtitle={isBuyer ? "查看本企业已确认采购项目的履约状态" : "平台内部跟踪采购、运输、报关、分拣和配送状态"}
       />
       <section className="metric-strip procurement-metrics">
-        <MetricCard icon="◰" label="进行中项目" value="8" hint="较上周 ↑ 2" />
-        <MetricCard icon="☑" label="已完成项目" value="26" hint="较上周 ↑ 5" />
-        <MetricCard icon="◷" label="按时交付率" value="92%" hint="较上周 ↑ 3%" />
-        <MetricCard icon="◴" label="整体完成率" value="78%" hint="较上周 ↑ 6%" />
-        <MetricCard icon="▣" label="平均交付周期" value="18 天" hint="较上周 ↓ 2天" />
-        <MetricCard icon="!" label="异常项目" value="2" hint="较上周 ↓ 1" />
+        <MetricCard icon="◰" label="进行中项目" value={loadState === "ready" ? String(inProgressCount) : "-"} hint="来自真实采购项目表" />
+        <MetricCard icon="☑" label="已完成项目" value={loadState === "ready" ? String(doneCount) : "-"} hint="结算归档阶段" />
+        <MetricCard icon="◷" label="按时交付率" value="-" hint="待接入实际 ETA 与签收时间" />
+        <MetricCard icon="◴" label="整体完成率" value={loadState === "ready" ? `${averageProgress}%` : "-"} hint="按履约阶段计算" />
+        <MetricCard icon="▣" label="采购项目数" value={loadState === "ready" ? String(orders.length) : "-"} hint="当前账号可见范围" />
+        <MetricCard icon="!" label="异常项目" value={loadState === "ready" ? String(exceptionCount) : "-"} hint="异常状态项目" />
       </section>
       <section className="progress-tabs">
         <button className="active" type="button">项目总览</button>
@@ -1465,40 +1565,47 @@ function ProcurementProgress({
         <button type="button">全部状态⌄</button>
         <button type="button">全部阶段⌄</button>
         <button type="button">起始日期 - 结束日期</button>
-        <button type="button">重置</button>
-        {isBuyer ? null : <button className="primary-button" type="button">导出报表</button>}
+        <button type="button" onClick={loadOrders}>刷新</button>
+        {!isBuyer && operatorRole === "manager" ? <button className="primary-button" type="button" onClick={createOrderFromConfirmedIntention}>从已确认意向生成采购项目</button> : null}
       </section>
+      {actionState ? <div className="operation-result">{actionState}</div> : null}
       <section className="procurement-layout">
         <div className="panel procurement-table">
           <h2>采购项目列表</h2>
           <div className="data-table procurement">
-            <div>项目 / 柜号</div>
-            <div>供应商</div>
+            <div>项目 / 单号</div>
+            <div>采购企业</div>
             <div>当前阶段</div>
             <div>整体进度</div>
-            <div>计划交付</div>
+            <div>到货窗口</div>
             <div>状态</div>
             <div>操作</div>
-            {rows.map((row, index) => (
+            {loadState === "loading" ? <div className="table-state" aria-live="polite">正在加载真实采购项目...</div> : null}
+            {loadState === "error" ? <div className="table-state error">采购项目加载失败，请检查登录状态和数据库。</div> : null}
+            {loadState === "ready" && orders.length === 0 ? <div className="table-state">暂无真实采购项目。先提交采购意向，由总监审批通过后，经理可在本页生成采购项目。</div> : null}
+            {orders.map((order) => (
               <ProcurementRow
-                key={row[1].toString()}
-                row={row}
-                product={products[index % products.length]}
+                key={order.id}
+                order={order}
+                product={productCatalog.find((product) => product.id === order.productId)}
+                isBuyer={isBuyer}
+                operatorRole={operatorRole}
+                onAdvance={() => advanceOrder(order)}
                 onDetail={() => {
-                  setSelectedId(products[index % products.length].id);
+                  setSelectedId(order.productId);
                   setView("detail");
                 }}
               />
             ))}
           </div>
-          <footer className="table-footer">共 8 条 <span>‹</span><b>1</b><span>›</span><button type="button">10 条/页⌄</button></footer>
+          <footer className="table-footer">共 {orders.length} 条 <span>‹</span><b>1</b><span>›</span><button type="button">10 条/页⌄</button></footer>
         </div>
         <aside className="procurement-side">
           <section className="panel stage-card">
-            <h2>阶段说明 <span>共 6 个阶段</span></h2>
+            <h2>阶段说明 <span>共 10 个阶段</span></h2>
             <div className="stage-steps">
-              {["需求确认", "采购中", "运输中", "清关中", "已到港", "已完成"].map((step, index) => (
-                <div key={step} className={index === 3 ? "active" : ""}>
+              {["二次确认", "合同签署", "预付款", "海外采购", "国际运输", "报关清关", "入库分拣", "二段配送", "签收", "结算归档"].map((step, index) => (
+                <div key={step} className={index === 0 ? "active" : ""}>
                   <b>{index + 1}</b>
                   <span>{step}</span>
                 </div>
@@ -1506,21 +1613,16 @@ function ProcurementProgress({
             </div>
           </section>
           <section className="panel timeline-card">
-            <h2>项目时间线</h2>
-            {[
-              ["2026-05-24 09:30", "需求已确认", "采购需求已提交并确认"],
-              ["2026-05-24 14:20", "采购已下单", "采购订单已发送至供应商"],
-              ["2026-05-27 16:45", "货物已发运", "供应商已发货，预计 2026-06-02 到港"],
-              ["2026-06-02 10:15", "货物已到港", "货物已到达目的港，等待清关"],
-              ["2026-06-03 11:30", "清关中", "海关清关进行中"],
-            ].map((item) => (
-              <div className="timeline-item" key={item[0]}>
-                <time>{item[0]}</time>
-                <strong>{item[1]}</strong>
-                <span>{item[2]}</span>
+            <h2>最新项目状态</h2>
+            {orders.slice(0, 5).map((order) => (
+              <div className="timeline-item" key={order.id}>
+                <time>{order.updatedAt}</time>
+                <strong>{order.stageLabel}</strong>
+                <span>{order.orderNo} · {order.productName ?? order.productId}</span>
               </div>
             ))}
-            <button className="outline-button full" type="button">查看全部时间线</button>
+            {orders.length === 0 ? <p className="empty-note">暂无采购项目时间线。</p> : null}
+            <button className="outline-button full" type="button" onClick={loadOrders}>刷新时间线</button>
           </section>
         </aside>
       </section>
@@ -1529,27 +1631,40 @@ function ProcurementProgress({
 }
 
 function ProcurementRow({
-  row,
+  order,
   product,
+  isBuyer,
+  operatorRole,
+  onAdvance,
   onDetail,
 }: {
-  row: (string | number)[];
-  product: Product;
+  order: ProcurementOrderRow;
+  product?: Product;
+  isBuyer: boolean;
+  operatorRole: OperatorRole;
+  onAdvance: () => void;
   onDetail: () => void;
 }) {
-  const percent = Number(row[4]);
+  const percent = order.progress;
+  const nextStageNeedsDirector = order.nextStage === "contract" || order.nextStage === "settlement";
+  const canAdvance = !isBuyer && Boolean(order.nextStage) && (nextStageNeedsDirector ? operatorRole === "director" : operatorRole === "manager");
   return (
     <>
       <div className="project-cell">
-        <ProductImage product={product} size="mini" />
-        <span><strong>{row[0]}</strong><small>柜号：{row[1]}</small></span>
+        {product ? <ProductImage product={product} size="mini" /> : <span className="fallback-product-icon">▧</span>}
+        <span><strong>{order.productName ?? order.productId}</strong><small>单号：{order.orderNo}</small></span>
       </div>
-      <div>{product.flag} {row[2]}</div>
-      <div><span className="dot" />{row[3]}<small>阶段 {Math.ceil(percent / 18)} / 6</small></div>
+      <div>{order.enterpriseName ?? order.enterpriseId}</div>
+      <div><span className="dot" />{order.stageLabel}<small>{order.containerType} · {order.quantityBoxes} 箱</small></div>
       <div><strong className="green-text">{percent}%</strong><ProgressBar value={percent} /></div>
-      <div>{row[5]}<small>{percent > 90 ? "提前 2 天" : "剩余 5 天"}</small></div>
-      <div><span className={`status-pill ${row[6] === "异常" ? "danger" : row[6] === "已完成" ? "done" : ""}`}>{row[6]}</span></div>
-      <div><button className="outline-button" type="button" onClick={onDetail}>查看详情</button></div>
+      <div>{order.expectedArrivalWindow}<small>{order.eta ? `ETA ${order.eta}` : order.receivingRegion}</small></div>
+      <div><span className={`status-pill ${order.status === "exception" ? "danger" : order.status === "settlement" ? "done" : ""}`}>{order.status === "exception" ? "异常" : order.status === "settlement" ? "已归档" : "进行中"}</span></div>
+      <div>
+        <div className="inline-action-group">
+          <button className="plain-link inline-action" type="button" onClick={onDetail}>商品</button>
+          {!isBuyer ? <button className="plain-link inline-action" type="button" onClick={onAdvance} disabled={!canAdvance}>{order.nextStage ? "推进" : "完成"}</button> : null}
+        </div>
+      </div>
     </>
   );
 }
@@ -2922,7 +3037,7 @@ export default function Home() {
       {view === "catalog" ? <Catalog portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} reloadProducts={loadProducts} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "documents" ? <FileCenterPage portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "aiReview" ? <AiReviewPage operatorRole={operatorRole} setView={setView} /> : null}
-      {view === "procurement" ? <ProcurementProgress portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "procurement" ? <ProcurementProgress portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "progress" ? <ProgressBoard portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} setView={setView} /> : null}
       {view === "intentionAdmin" ? <IntentionAdminPage operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}
