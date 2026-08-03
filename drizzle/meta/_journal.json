@@ -50,6 +50,13 @@
       "when": 1785745200000,
       "tag": "0006_customs_clearance_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1785747000000,
+      "tag": "0007_warehouse_sorting_fields",
+      "breakpoints": true
     }
   ]
 }

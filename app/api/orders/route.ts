@@ -77,6 +77,14 @@ type UpdateOrderPayload = {
   estimatedVatCny?: number | string;
   actualTaxPaidCny?: number | string;
   customsInspectionStatus?: string;
+  warehouseName?: string;
+  warehouseInboundNo?: string;
+  warehouseInboundAt?: string;
+  receivedBoxes?: number | string;
+  damagedBoxes?: number | string;
+  shortageBoxes?: number | string;
+  sortingBatchNo?: string;
+  allocationStatus?: string;
   overseasSupplierName?: string;
   overseasPoNo?: string;
   proformaInvoiceNo?: string;
@@ -195,6 +203,14 @@ export async function GET(request: Request) {
         estimatedVatCny: procurementOrders.estimatedVatCny,
         actualTaxPaidCny: procurementOrders.actualTaxPaidCny,
         customsInspectionStatus: procurementOrders.customsInspectionStatus,
+        warehouseName: procurementOrders.warehouseName,
+        warehouseInboundNo: procurementOrders.warehouseInboundNo,
+        warehouseInboundAt: procurementOrders.warehouseInboundAt,
+        receivedBoxes: procurementOrders.receivedBoxes,
+        damagedBoxes: procurementOrders.damagedBoxes,
+        shortageBoxes: procurementOrders.shortageBoxes,
+        sortingBatchNo: procurementOrders.sortingBatchNo,
+        allocationStatus: procurementOrders.allocationStatus,
         overseasSupplierName: procurementOrders.overseasSupplierName,
         overseasPoNo: procurementOrders.overseasPoNo,
         proformaInvoiceNo: procurementOrders.proformaInvoiceNo,
@@ -385,6 +401,15 @@ export async function PATCH(request: Request) {
     if (payload.actualTaxPaidCny !== undefined && payload.actualTaxPaidCny !== "" && !Number.isFinite(Number(payload.actualTaxPaidCny))) {
       return badRequest("actualTaxPaidCny must be a number");
     }
+    if (payload.receivedBoxes !== undefined && payload.receivedBoxes !== "" && (!Number.isInteger(Number(payload.receivedBoxes)) || Number(payload.receivedBoxes) < 0)) {
+      return badRequest("receivedBoxes must be a non-negative integer");
+    }
+    if (payload.damagedBoxes !== undefined && payload.damagedBoxes !== "" && (!Number.isInteger(Number(payload.damagedBoxes)) || Number(payload.damagedBoxes) < 0)) {
+      return badRequest("damagedBoxes must be a non-negative integer");
+    }
+    if (payload.shortageBoxes !== undefined && payload.shortageBoxes !== "" && (!Number.isInteger(Number(payload.shortageBoxes)) || Number(payload.shortageBoxes) < 0)) {
+      return badRequest("shortageBoxes must be a non-negative integer");
+    }
 
     if (payload.action !== "mark_exception" && payload.action !== "request_changes") {
       const currentStage = current.currentStage as WorkflowStage;
@@ -424,6 +449,14 @@ export async function PATCH(request: Request) {
         estimatedVatCny: payload.estimatedVatCny === undefined || payload.estimatedVatCny === "" ? current.estimatedVatCny : Number(payload.estimatedVatCny),
         actualTaxPaidCny: payload.actualTaxPaidCny === undefined || payload.actualTaxPaidCny === "" ? current.actualTaxPaidCny : Number(payload.actualTaxPaidCny),
         customsInspectionStatus: payload.customsInspectionStatus?.trim() || current.customsInspectionStatus,
+        warehouseName: payload.warehouseName?.trim() || current.warehouseName,
+        warehouseInboundNo: payload.warehouseInboundNo?.trim() || current.warehouseInboundNo,
+        warehouseInboundAt: payload.warehouseInboundAt?.trim() || current.warehouseInboundAt,
+        receivedBoxes: payload.receivedBoxes === undefined || payload.receivedBoxes === "" ? current.receivedBoxes : Number(payload.receivedBoxes),
+        damagedBoxes: payload.damagedBoxes === undefined || payload.damagedBoxes === "" ? current.damagedBoxes : Number(payload.damagedBoxes),
+        shortageBoxes: payload.shortageBoxes === undefined || payload.shortageBoxes === "" ? current.shortageBoxes : Number(payload.shortageBoxes),
+        sortingBatchNo: payload.sortingBatchNo?.trim() || current.sortingBatchNo,
+        allocationStatus: payload.allocationStatus?.trim() || current.allocationStatus,
         overseasSupplierName: payload.overseasSupplierName?.trim() || current.overseasSupplierName,
         overseasPoNo: payload.overseasPoNo?.trim() || current.overseasPoNo,
         proformaInvoiceNo: payload.proformaInvoiceNo?.trim() || current.proformaInvoiceNo,
@@ -458,6 +491,14 @@ export async function PATCH(request: Request) {
         estimatedVatCny: payload.estimatedVatCny,
         actualTaxPaidCny: payload.actualTaxPaidCny,
         customsInspectionStatus: payload.customsInspectionStatus,
+        warehouseName: payload.warehouseName,
+        warehouseInboundNo: payload.warehouseInboundNo,
+        warehouseInboundAt: payload.warehouseInboundAt,
+        receivedBoxes: payload.receivedBoxes,
+        damagedBoxes: payload.damagedBoxes,
+        shortageBoxes: payload.shortageBoxes,
+        sortingBatchNo: payload.sortingBatchNo,
+        allocationStatus: payload.allocationStatus,
         overseasSupplierName: payload.overseasSupplierName,
         overseasPoNo: payload.overseasPoNo,
         proformaInvoiceNo: payload.proformaInvoiceNo,

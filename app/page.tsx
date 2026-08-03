@@ -178,6 +178,14 @@ type ProcurementOrderRow = {
   estimatedVatCny: number | null;
   actualTaxPaidCny: number | null;
   customsInspectionStatus: string | null;
+  warehouseName: string | null;
+  warehouseInboundNo: string | null;
+  warehouseInboundAt: string | null;
+  receivedBoxes: number | null;
+  damagedBoxes: number | null;
+  shortageBoxes: number | null;
+  sortingBatchNo: string | null;
+  allocationStatus: string | null;
   overseasSupplierName: string | null;
   overseasPoNo: string | null;
   proformaInvoiceNo: string | null;
@@ -1779,6 +1787,16 @@ function OrderDetailPage({
     actualTaxPaidCny: "",
     customsInspectionStatus: "待判定",
   });
+  const [warehouseForm, setWarehouseForm] = useState({
+    warehouseName: "",
+    warehouseInboundNo: "",
+    warehouseInboundAt: "",
+    receivedBoxes: "",
+    damagedBoxes: "0",
+    shortageBoxes: "0",
+    sortingBatchNo: "",
+    allocationStatus: "待分货",
+  });
 
   const loadOrder = () => {
     if (!orderId) {
@@ -1825,6 +1843,16 @@ function OrderDetailPage({
           estimatedVatCny: data.order.estimatedVatCny === null || data.order.estimatedVatCny === undefined ? "" : String(data.order.estimatedVatCny),
           actualTaxPaidCny: data.order.actualTaxPaidCny === null || data.order.actualTaxPaidCny === undefined ? "" : String(data.order.actualTaxPaidCny),
           customsInspectionStatus: data.order.customsInspectionStatus ?? "待判定",
+        });
+        setWarehouseForm({
+          warehouseName: data.order.warehouseName ?? "",
+          warehouseInboundNo: data.order.warehouseInboundNo ?? "",
+          warehouseInboundAt: data.order.warehouseInboundAt ?? "",
+          receivedBoxes: data.order.receivedBoxes === null || data.order.receivedBoxes === undefined ? "" : String(data.order.receivedBoxes),
+          damagedBoxes: data.order.damagedBoxes === null || data.order.damagedBoxes === undefined ? "0" : String(data.order.damagedBoxes),
+          shortageBoxes: data.order.shortageBoxes === null || data.order.shortageBoxes === undefined ? "0" : String(data.order.shortageBoxes),
+          sortingBatchNo: data.order.sortingBatchNo ?? "",
+          allocationStatus: data.order.allocationStatus ?? "待分货",
         });
         setLoadState("ready");
       })
@@ -1955,6 +1983,30 @@ function OrderDetailPage({
     }
   };
 
+  const saveWarehouseFields = async () => {
+    if (!order) return;
+    setActionState("正在保存入库分拣信息...");
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "request_changes",
+          nextStage: order.currentStage,
+          ...warehouseForm,
+          note: "经理补充入库分拣结构化字段。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "保存失败");
+      setActionState("入库分拣信息已保存。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "保存失败");
+    }
+  };
+
   if (loadState === "loading") {
     return <section className="panel order-detail-panel"><h2>正在加载订单详情...</h2></section>;
   }
@@ -1979,6 +2031,7 @@ function OrderDetailPage({
   const canEditOverseasFields = !isBuyer && operatorRole === "manager" && order.currentStage === "overseas_purchase";
   const canEditShippingFields = !isBuyer && operatorRole === "manager" && order.currentStage === "international_shipping";
   const canEditCustomsFields = !isBuyer && operatorRole === "manager" && order.currentStage === "customs_clearance";
+  const canEditWarehouseFields = !isBuyer && operatorRole === "manager" && order.currentStage === "warehouse_sorting";
 
   return (
     <>
@@ -2093,6 +2146,29 @@ function OrderDetailPage({
             <label><span>查验状态</span><input value={customsForm.customsInspectionStatus} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, customsInspectionStatus: event.target.value })} /></label>
           </div>
           {canEditCustomsFields ? <button className="primary-button" type="button" onClick={saveCustomsFields}>保存报关清关信息</button> : null}
+        </section>
+      ) : null}
+
+      {order.currentStage === "warehouse_sorting" ? (
+        <section className="panel overseas-purchase-panel warehouse-sorting-panel">
+          <div className="panel-head">
+            <div>
+              <h2>入库分拣信息</h2>
+              <p>记录入库仓、入库单号、实收箱数、短溢破损和分货批次，作为进入二段配送前的结构化资料。</p>
+            </div>
+            <StatusPill status={order.allocationStatus ?? "待补充"} />
+          </div>
+          <div className="overseas-form-grid">
+            <label><span>入库仓</span><input value={warehouseForm.warehouseName} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, warehouseName: event.target.value })} /></label>
+            <label><span>入库单号</span><input value={warehouseForm.warehouseInboundNo} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, warehouseInboundNo: event.target.value })} /></label>
+            <label><span>入库日期</span><input type="date" value={warehouseForm.warehouseInboundAt} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, warehouseInboundAt: event.target.value })} /></label>
+            <label><span>实收箱数</span><input value={warehouseForm.receivedBoxes} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, receivedBoxes: event.target.value })} /></label>
+            <label><span>破损箱数</span><input value={warehouseForm.damagedBoxes} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, damagedBoxes: event.target.value })} /></label>
+            <label><span>短溢箱数</span><input value={warehouseForm.shortageBoxes} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, shortageBoxes: event.target.value })} /></label>
+            <label><span>分货批次</span><input value={warehouseForm.sortingBatchNo} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, sortingBatchNo: event.target.value })} /></label>
+            <label><span>分货状态</span><input value={warehouseForm.allocationStatus} disabled={!canEditWarehouseFields} onChange={(event) => setWarehouseForm({ ...warehouseForm, allocationStatus: event.target.value })} /></label>
+          </div>
+          {canEditWarehouseFields ? <button className="primary-button" type="button" onClick={saveWarehouseFields}>保存入库分拣信息</button> : null}
         </section>
       ) : null}
 

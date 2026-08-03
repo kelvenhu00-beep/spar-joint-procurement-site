@@ -40,6 +40,7 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "drizzle", "0004_order_bound_documents_files.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0005_overseas_purchase_fields.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0006_customs_clearance_fields.sql")).isFile());
+  assert.ok(statSync(join(root, "drizzle", "0007_warehouse_sorting_fields.sql")).isFile());
 });
 
 test("order workflow enforces reviewed stage documents", () => {
@@ -91,4 +92,15 @@ test("customs clearance stage has declaration, broker and tax fields", () => {
   assert.ok(orderRoute.includes("customsBrokerName") && orderRoute.includes("actualTaxPaidCny"), "orders API must expose customs clearance fields");
   assert.ok(page.includes("customs-clearance-panel") && page.includes("saveCustomsFields"), "order detail must render customs clearance form");
   assert.ok(migration.includes("customs_broker_name") && migration.includes("actual_tax_paid_cny"), "customs migration must add broker and tax fields");
+});
+
+test("warehouse sorting stage has inbound and allocation fields", () => {
+  const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  const migration = readFileSync(join(root, "drizzle", "0007_warehouse_sorting_fields.sql"), "utf8");
+  assert.ok(orderRoute.includes("warehouse_sorting: [\"入库单\", \"分货清单\"]"), "warehouse sorting gate must require inbound and allocation documents");
+  assert.ok(orderRoute.includes("warehouseName") && orderRoute.includes("receivedBoxes") && orderRoute.includes("allocationStatus"), "orders API must expose warehouse sorting fields");
+  assert.ok(orderRoute.includes("receivedBoxes must be a non-negative integer"), "warehouse numeric fields must be validated");
+  assert.ok(page.includes("warehouse-sorting-panel") && page.includes("saveWarehouseFields"), "order detail must render warehouse sorting form");
+  assert.ok(migration.includes("warehouse_inbound_no") && migration.includes("received_boxes") && migration.includes("allocation_status"), "warehouse migration must add inbound and allocation fields");
 });
