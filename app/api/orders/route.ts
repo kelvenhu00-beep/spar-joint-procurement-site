@@ -197,6 +197,8 @@ export async function GET(request: Request) {
         db.select().from(businessDocuments).where(eq(businessDocuments.orderId, id)).orderBy(desc(businessDocuments.createdAt)),
         db.select().from(fileUploads).where(eq(fileUploads.orderId, id)).orderBy(desc(fileUploads.uploadedAt)),
       ]);
+      const visibleDocuments = user.userType === "enterprise_user" ? documents.filter((document) => document.visibility !== "internal") : documents;
+      const visibleUploadIds = new Set(visibleDocuments.map((document) => document.fileUploadId).filter(Boolean));
 
       return Response.json({
         order: {
@@ -213,8 +215,8 @@ export async function GET(request: Request) {
           gate: stageGate(documents, stage),
         })),
         events,
-        documents: user.userType === "enterprise_user" ? documents.filter((document) => document.visibility !== "internal") : documents,
-        uploads: user.userType === "enterprise_user" ? [] : uploads,
+        documents: visibleDocuments,
+        uploads: user.userType === "enterprise_user" ? uploads.filter((upload) => visibleUploadIds.has(upload.id)) : uploads,
       });
     }
 

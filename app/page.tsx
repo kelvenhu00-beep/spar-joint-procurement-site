@@ -1911,7 +1911,10 @@ function OrderDetailPage({
               const stageDocuments = documents.filter((document) => document.stage === stage.label);
               const stageUploadIds = new Set(stageDocuments.map((document) => document.fileUploadId).filter(Boolean));
               const stageUploads = uploads.filter((upload) => stageUploadIds.has(upload.id));
-              const canUpload = !isBuyer && operatorRole === "manager" && stage.stage === order.currentStage;
+              const canManagerUpload = !isBuyer && operatorRole === "manager" && stage.stage === order.currentStage;
+              const canBuyerUploadPaymentProof = isBuyer && stage.stage === order.currentStage && order.currentStage === "deposit_payment";
+              const canUpload = canManagerUpload || canBuyerUploadPaymentProof;
+              const uploadFileTypes = canBuyerUploadPaymentProof ? ["预付款证明"] : stage.requiredDocuments;
               return (
                 <article className={`order-stage-card ${stage.stage === order.currentStage ? "active" : ""}`} key={stage.stage}>
                   <div className="stage-index">{index + 1}</div>
@@ -1938,11 +1941,11 @@ function OrderDetailPage({
                           stage={{
                             stage: stage.label,
                             timing: "当前订单节点",
-                            owner: "商品运营经理",
-                            files: stage.requiredDocuments,
-                            status: "经理补资料中",
+                            owner: canBuyerUploadPaymentProof ? "企业采购" : "商品运营经理",
+                            files: uploadFileTypes,
+                            status: canBuyerUploadPaymentProof ? "企业待上传" : "经理补资料中",
                             buyerStatus: "状态可见",
-                            note: "订单详情页上传，文件会绑定当前采购项目。",
+                            note: canBuyerUploadPaymentProof ? "企业上传付款证明后，等待平台复核。" : "订单详情页上传，文件会绑定当前采购项目。",
                           }}
                           sequence={index + 1}
                           onUploaded={loadOrder}

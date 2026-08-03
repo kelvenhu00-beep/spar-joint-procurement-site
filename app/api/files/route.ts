@@ -103,9 +103,9 @@ export async function POST(request: Request) {
   try {
     const user = await getCurrentUser(request);
     if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
-    if (user.userType !== "operator_user" || user.role !== "manager") {
-      return Response.json({ error: "只有商品运营经理可以上传流程文件。" }, { status: 403 });
-    }
+    const isManagerUpload = user.userType === "operator_user" && user.role === "manager";
+    const isEnterpriseUpload = user.userType === "enterprise_user";
+    if (!isManagerUpload && !isEnterpriseUpload) return Response.json({ error: "当前账号无权上传流程文件。" }, { status: 403 });
 
     const bucket = (env as FilesEnv).FILES;
     if (!bucket) {
@@ -134,6 +134,27 @@ export async function POST(request: Request) {
     const [order] = orderId ? await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId)).limit(1) : [];
     if (orderId && !order) return badRequest("order does not exist");
     if (order && order.productId !== productId) return badRequest("order product does not match productId");
+    if (isEnterpriseUpload) {
+      if (!order) return badRequest("enterprise upload must be bound to an order");
+      if (order.enterpriseId !== user.enterpriseId) return Response.json({ error: "企业账号不能上传其他企业订单文件。" }, { status: 403 });
+      if (order.currentStage !== "deposit_payment" || stage !== "预付款" || requiredFileType !== "预付款证明") {
+        return Response.json({ error: "企业账号当前只能在预付款阶段上传预付款证明。" }, { status: 403 });
+      }
+    }
+    if (isManagerUpload && order && stage !== ({
+      second_confirmation: "二次确认",
+      contract: "合同签署",
+      deposit_payment: "预付款",
+      overseas_purchase: "海外采购",
+      international_shipping: "国际运输",
+      customs_clearance: "报关清关",
+      warehouse_sorting: "入库分拣",
+      domestic_delivery: "二段配送",
+      signed: "签收",
+      settlement: "结算归档",
+    } as Record<string, string>)[order.currentStage]) {
+      return Response.json({ error: "只能在订单当前阶段上传流程文件。" }, { status: 403 });
+    }
 
     const [existingRequirement] = await db
       .select()
@@ -195,8 +216,8 @@ export async function POST(request: Request) {
       stage,
       title: `${product.cnName} · ${requiredFileType}`,
       status: "ai_review",
-      visibility: stage.includes("二次确认") || stage.includes("合同") || stage.includes("交付") ? "buyer_visible_after_review" : "internal",
-      createdByUserType: "operator_user",
+      visibility: stage.includes("二次确认") || stage.includes("合同") || stage.includes("预付款") || stage.includes("交付") ? "buyer_visible_after_review" : "internal",
+      createdByUserType: user.userType,
       createdByUserId: user.id,
       metadataJson: JSON.stringify({ businessNo, originalFileName, orderId: orderId || null }),
     });

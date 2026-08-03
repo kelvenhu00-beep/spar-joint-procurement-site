@@ -56,3 +56,11 @@ test("file downloads are permission checked", () => {
   assert.ok(fileRoute.includes("document.visibility !== \"internal\""), "buyer downloads must hide internal files");
   assert.ok(fileRoute.includes("document.status === \"approved\""), "buyer downloads must require approved files");
 });
+
+test("enterprise upload is limited to payment proof", () => {
+  const fileRoute = readFileSync(join(root, "app", "api", "files", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  assert.ok(fileRoute.includes("企业账号当前只能在预付款阶段上传预付款证明。"), "enterprise upload must be restricted to payment proof");
+  assert.ok(fileRoute.includes("order.currentStage !== \"deposit_payment\""), "enterprise payment upload must require deposit payment stage");
+  assert.ok(page.includes("canBuyerUploadPaymentProof"), "buyer payment proof upload form must exist on order detail");
+});
