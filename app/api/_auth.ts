@@ -4,7 +4,7 @@ import { authSessions, enterpriseUsers, operatorUsers } from "../../db/schema";
 import { makeId } from "./_utils";
 
 const SESSION_COOKIE = "spar_session";
-const PASSWORD_ITERATIONS = 210000;
+const PASSWORD_ITERATIONS = 100000;
 
 export type AuthenticatedUser = {
   userType: "enterprise_user" | "operator_user";
