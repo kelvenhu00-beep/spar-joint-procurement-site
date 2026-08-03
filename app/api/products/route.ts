@@ -1,6 +1,6 @@
 import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { products } from "../../../db/schema";
+import { procurementGroups, products } from "../../../db/schema";
 import { badRequest, makeId, serverError } from "../_utils";
 import { getCurrentUser } from "../_auth";
 
@@ -71,6 +71,7 @@ export async function POST(request: Request) {
     const id = payload.id?.trim() || makeId("sku");
     const db = getDb();
 
+    const targetBoxes20ft = requirePositiveInteger(payload.targetBoxes20ft, "targetBoxes20ft");
     const [product] = await db
       .insert(products)
       .values({
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
         grossMarginBand: requireText(payload.grossMarginBand, "grossMarginBand"),
         moqBoxes: requirePositiveInteger(payload.moqBoxes, "moqBoxes"),
         last12MonthBoxes: Number(payload.last12MonthBoxes ?? 0),
-        targetBoxes20ft: requirePositiveInteger(payload.targetBoxes20ft, "targetBoxes20ft"),
+        targetBoxes20ft,
         status: payload.status?.trim() || "draft",
         authorizationStatus: payload.authorizationStatus?.trim() || "pending",
         labelStatus: payload.labelStatus?.trim() || "pending",
@@ -97,6 +98,15 @@ export async function POST(request: Request) {
         imagePath: payload.imagePath?.trim() || "/product-assets/haribo.png",
       })
       .returning();
+
+    await db.insert(procurementGroups).values({
+      id: makeId("grp"),
+      productId: product.id,
+      containerType: "20ft",
+      targetBoxes: targetBoxes20ft,
+      currentBoxes: 0,
+      status: "collecting",
+    }).onConflictDoNothing();
 
     return Response.json({ product }, { status: 201 });
   } catch (error) {
@@ -125,6 +135,7 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "只有商品总监可以审批商品。" }, { status: 403 });
     }
 
+    const nextTargetBoxes20ft = payload.targetBoxes20ft === undefined ? existing.targetBoxes20ft : requirePositiveInteger(payload.targetBoxes20ft, "targetBoxes20ft");
     const [product] = await db
       .update(products)
       .set({
@@ -141,7 +152,7 @@ export async function PATCH(request: Request) {
         grossMarginBand: payload.grossMarginBand?.trim() || existing.grossMarginBand,
         moqBoxes: payload.moqBoxes === undefined ? existing.moqBoxes : requirePositiveInteger(payload.moqBoxes, "moqBoxes"),
         last12MonthBoxes: payload.last12MonthBoxes === undefined ? existing.last12MonthBoxes : Number(payload.last12MonthBoxes),
-        targetBoxes20ft: payload.targetBoxes20ft === undefined ? existing.targetBoxes20ft : requirePositiveInteger(payload.targetBoxes20ft, "targetBoxes20ft"),
+        targetBoxes20ft: nextTargetBoxes20ft,
         status: nextStatus || existing.status,
         authorizationStatus: payload.authorizationStatus?.trim() || existing.authorizationStatus,
         labelStatus: payload.labelStatus?.trim() || existing.labelStatus,
@@ -152,6 +163,26 @@ export async function PATCH(request: Request) {
       })
       .where(eq(products.id, id))
       .returning();
+
+    const [group] = await db.select().from(procurementGroups).where(eq(procurementGroups.productId, id)).limit(1);
+    if (group) {
+      await db
+        .update(procurementGroups)
+        .set({
+          targetBoxes: nextTargetBoxes20ft,
+          updatedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(eq(procurementGroups.id, group.id));
+    } else {
+      await db.insert(procurementGroups).values({
+        id: makeId("grp"),
+        productId: id,
+        containerType: "20ft",
+        targetBoxes: nextTargetBoxes20ft,
+        currentBoxes: 0,
+        status: "collecting",
+      });
+    }
 
     return Response.json({ product });
   } catch (error) {

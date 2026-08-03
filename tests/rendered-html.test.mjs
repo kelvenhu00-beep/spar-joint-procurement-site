@@ -45,6 +45,13 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "drizzle", "0009_signed_settlement_fields.sql")).isFile());
 });
 
+test("product creation creates and maintains the 20ft procurement group", () => {
+  const productRoute = readFileSync(join(root, "app", "api", "products", "route.ts"), "utf8");
+  assert.ok(productRoute.includes("procurementGroups"), "products API must maintain procurement groups");
+  assert.ok(productRoute.includes("containerType: \"20ft\""), "product creation must create a 20ft group");
+  assert.ok(productRoute.includes("targetBoxes: targetBoxes20ft"), "product group target must follow the product target boxes");
+});
+
 test("order workflow enforces reviewed stage documents", () => {
   const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
   const fileRoute = readFileSync(join(root, "app", "api", "files", "route.ts"), "utf8");
@@ -52,6 +59,12 @@ test("order workflow enforces reviewed stage documents", () => {
   assert.ok(orderRoute.includes("blockedDocuments"), "missing blocked document response");
   assert.ok(fileRoute.includes("businessDocuments"), "file review must update business documents");
   assert.ok(fileRoute.includes("fileUploadId"), "file review must locate linked business document");
+});
+
+test("business document review separates manager and director permissions", () => {
+  const documentRoute = readFileSync(join(root, "app", "api", "documents", "route.ts"), "utf8");
+  assert.ok(documentRoute.includes("只有商品运营经理可以提交单据复核。"), "manager must be required to submit document review");
+  assert.ok(documentRoute.includes("只有商品总监可以审批、归档或作废业务单据。"), "director must be required for document decisions");
 });
 
 test("file downloads are permission checked", () => {

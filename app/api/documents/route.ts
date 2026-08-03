@@ -164,6 +164,12 @@ export async function PATCH(request: Request) {
     const action = payload.action;
     if (!id) return badRequest("id is required");
     if (!action) return badRequest("action is required");
+    if (action === "submit_review" && user.role !== "manager") {
+      return Response.json({ error: "只有商品运营经理可以提交单据复核。" }, { status: 403 });
+    }
+    if ((action === "approve" || action === "request_changes" || action === "archive" || action === "void") && user.role !== "director") {
+      return Response.json({ error: "只有商品总监可以审批、归档或作废业务单据。" }, { status: 403 });
+    }
 
     const nextStatusByAction = {
       submit_review: "reviewing",
