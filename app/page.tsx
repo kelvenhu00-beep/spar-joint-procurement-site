@@ -70,6 +70,22 @@ type PurchaseIntentionRow = {
   submittedAt: string;
 };
 
+type FileUploadRow = {
+  id: string;
+  requirementId: string;
+  productId: string;
+  businessNo: string;
+  originalFileName: string;
+  storageKey: string;
+  mimeType: string;
+  sizeBytes: number;
+  aiReviewStatus: string;
+  aiReviewSummary: string | null;
+  manualReviewStatus: string;
+  uploadedByUserId: string;
+  uploadedAt: string;
+};
+
 const products: Product[] = [
   {
     id: "haribo-goldbears-175g",
@@ -1199,9 +1215,10 @@ function IntentionAdminPage({
   const isDirector = operatorRole === "director";
   const [rows, setRows] = useState<PurchaseIntentionRow[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [actionState, setActionState] = useState("");
 
-  useEffect(() => {
-    let active = true;
+  const loadIntentions = () => {
+    setLoadState("loading");
     fetch("/api/purchase-intentions/")
       .then(async (response) => {
         const data = (await response.json()) as {
@@ -1209,19 +1226,39 @@ function IntentionAdminPage({
           error?: string;
         };
         if (!response.ok) throw new Error(data.error ?? "采购意向加载失败");
-        if (active) {
-          setRows(data.purchaseIntentions ?? []);
-          setLoadState("ready");
-        }
+        setRows(data.purchaseIntentions ?? []);
+        setLoadState("ready");
       })
       .catch(() => {
-        if (active) setLoadState("error");
+        setLoadState("error");
       });
+  };
 
-    return () => {
-      active = false;
-    };
+  useEffect(() => {
+    loadIntentions();
   }, []);
+
+  const reviewIntention = async (id: string, action: "submit_for_director" | "approve" | "request_changes" | "reject") => {
+    setActionState("正在处理采购意向...");
+    try {
+      const response = await fetch("/api/purchase-intentions/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          action,
+          actorRole: operatorRole,
+          comment: action === "approve" ? "总监确认通过，进入二次确认/成团汇总。" : "按当前节点处理。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "处理失败");
+      setActionState("处理完成，状态已写入数据库。");
+      loadIntentions();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "处理失败");
+    }
+  };
 
   const pendingCount = rows.filter((row) => row.status === "submitted").length;
   const reviewableCount = rows.filter((row) => row.quantityBoxes >= 120).length;
@@ -1240,9 +1277,10 @@ function IntentionAdminPage({
         <button type="button">全部状态⌄</button>
         <button type="button">商品国家⌄</button>
         <button type="button">到货窗口⌄</button>
-        <button type="button">重置</button>
-        <button className="primary-button" type="button">{isDirector ? "批准发起二次确认" : "提交总监审批"}</button>
+        <button type="button" onClick={loadIntentions}>刷新</button>
+        <button className="primary-button" type="button" onClick={() => rows[0] ? reviewIntention(rows[0].id, isDirector ? "approve" : "submit_for_director") : setActionState("没有可处理的采购意向。")}>{isDirector ? "批准第一条意向" : "提交第一条给总监"}</button>
       </section>
+      {actionState ? <div className="operation-result">{actionState}</div> : null}
       <section className="approval-gate-strip">
         {["达到20尺柜", "最终报价版本", "到货窗口", "合同条款", "授权与标签"].map((item, index) => (
           <article key={item} className={index < 3 ? "done" : ""}>
@@ -1272,16 +1310,27 @@ function IntentionAdminPage({
                 <div key={`${row.id}-${cellIndex}`}>
                   {cellIndex === 5 ? <span className="status-pill">{cell}</span> : cell}
                   {cellIndex === 6 ? (
-                    <button
-                      className="plain-link inline-action"
-                      type="button"
-                      onClick={() => {
-                        setSelectedId(row.productId);
-                        setView("detail");
-                      }}
-                    >
-                      {isDirector ? "审批" : "查看"}
-                    </button>
+                    <div className="inline-action-group">
+                      <button
+                        className="plain-link inline-action"
+                        type="button"
+                        onClick={() => {
+                          setSelectedId(row.productId);
+                          setView("detail");
+                        }}
+                      >
+                        商品
+                      </button>
+                      {isDirector ? (
+                        <>
+                          <button className="plain-link inline-action" type="button" onClick={() => reviewIntention(row.id, "approve")}>通过</button>
+                          <button className="plain-link inline-action" type="button" onClick={() => reviewIntention(row.id, "request_changes")}>补充</button>
+                          <button className="plain-link inline-action danger" type="button" onClick={() => reviewIntention(row.id, "reject")}>驳回</button>
+                        </>
+                      ) : (
+                        <button className="plain-link inline-action" type="button" onClick={() => reviewIntention(row.id, "submit_for_director")}>提交总监</button>
+                      )}
+                    </div>
                   ) : null}
                 </div>
               ))
@@ -1469,15 +1518,58 @@ function FileCenterPage({
 
 function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; setView: (view: View) => void }) {
   const isDirector = operatorRole === "director";
+  const [uploads, setUploads] = useState<FileUploadRow[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [actionState, setActionState] = useState("");
+
+  const loadUploads = () => {
+    setLoadState("loading");
+    fetch("/api/files/")
+      .then(async (response) => {
+        const data = (await response.json()) as { uploads?: FileUploadRow[]; error?: string };
+        if (!response.ok) throw new Error(data.error ?? "文件加载失败");
+        setUploads(data.uploads ?? []);
+        setLoadState("ready");
+      })
+      .catch(() => setLoadState("error"));
+  };
+
+  useEffect(() => {
+    loadUploads();
+  }, []);
+
+  const reviewFile = async (id: string, action: "ai_pass" | "ai_warning" | "approve" | "request_changes" | "reject") => {
+    setActionState("正在处理文件审核...");
+    try {
+      const response = await fetch("/api/files/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          action,
+          actorRole: operatorRole,
+          summary: action === "ai_pass" ? "AI 初审字段完整，等待人工复核。" : action === "approve" ? "总监确认文件可归档。" : "需补充或修正文件。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "文件审核失败");
+      setActionState("文件状态已更新。");
+      loadUploads();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "文件审核失败");
+    }
+  };
+
   return (
     <>
       <PageTitle title="AI 初审队列" subtitle={isDirector ? "总监复核 AI 初审结果并决定通过、退回或驳回" : "经理处理 AI 初审提示，补资料后提交总监复核"} />
       <section className="metric-strip ai-metrics">
-        <MetricCard icon="◎" label="待初审" value="24" hint="近 24 小时新增 9 份" />
-        <MetricCard icon="!" label="需补正" value="7" hint="授权、报价、装箱资料问题较多" />
-        <MetricCard icon="◇" label="待人工复核" value="16" hint="按岗位分配处理" />
-        <MetricCard icon="▦" label="自动抽取字段" value="186" hint="待确认后写入业务数据" />
+        <MetricCard icon="◎" label="待初审" value={loadState === "ready" ? String(uploads.filter((item) => item.aiReviewStatus === "pending").length) : "-"} hint="来自真实上传文件" />
+        <MetricCard icon="!" label="需补正" value={loadState === "ready" ? String(uploads.filter((item) => item.manualReviewStatus === "changes_requested").length) : "-"} hint="授权、报价、装箱资料问题较多" />
+        <MetricCard icon="◇" label="待人工复核" value={loadState === "ready" ? String(uploads.filter((item) => item.manualReviewStatus === "pending").length) : "-"} hint="按岗位分配处理" />
+        <MetricCard icon="▦" label="已上传文件" value={loadState === "ready" ? String(uploads.length) : "-"} hint="绑定商品、阶段和业务单号" />
       </section>
+      {actionState ? <div className="operation-result">{actionState}</div> : null}
 
       <section className="ai-layout">
         <article className="panel ai-queue-panel">
@@ -1489,43 +1581,46 @@ function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; s
             <div className="file-tools">
               <button className="outline-button" type="button">风险等级⌄</button>
               <button className="outline-button" type="button">责任岗位⌄</button>
-              <button className="primary-button" type="button">{isDirector ? "批量审批" : "批量提交复核"}</button>
+              <button className="primary-button" type="button" onClick={loadUploads}>刷新队列</button>
             </div>
           </div>
           <div className="review-list">
-            {reviewItems.map((item) => (
-              <article className="review-card" key={item.file}>
+            {loadState === "loading" ? <div className="table-state" aria-live="polite">正在加载真实上传文件...</div> : null}
+            {loadState === "error" ? <div className="table-state error">文件队列加载失败。</div> : null}
+            {loadState === "ready" && uploads.length === 0 ? <div className="table-state">暂无上传文件。请先进入商品详情页的流程节点上传。</div> : null}
+            {uploads.map((item) => (
+              <article className="review-card" key={item.id}>
                 <div className="review-head">
                   <div>
-                    <h3>{item.file}</h3>
-                    <p>{item.product} · {item.businessNo}</p>
-                    <p>{item.stage} · {item.owner}</p>
+                    <h3>{item.originalFileName}</h3>
+                    <p>{item.productId} · {item.businessNo}</p>
+                    <p>{Math.round(item.sizeBytes / 1024)} KB · {item.mimeType}</p>
                   </div>
                   <div className="review-badges">
-                    <span className={`risk-badge risk-${item.risk}`}>{item.risk}风险</span>
-                    <StatusPill status={item.status} />
+                    <span className={`risk-badge risk-${item.aiReviewStatus === "warning" ? "高" : "低"}`}>{item.aiReviewStatus === "warning" ? "高风险" : "待核验"}</span>
+                    <StatusPill status={item.manualReviewStatus} />
                   </div>
                 </div>
                 <div className="extracted-grid">
-                  {item.extracted.map((field) => (
+                  {["文件名", item.originalFileName, "业务单号", item.businessNo, "存储键", item.storageKey].map((field) => (
                     <span key={field}>{field}</span>
                   ))}
                 </div>
                 <div className="review-issue">
                   <strong>初审提示</strong>
-                  <p>{item.issue}</p>
+                  <p>{item.aiReviewSummary ?? "已接收文件，等待初审和人工复核。"}</p>
                 </div>
                 <div className="review-actions">
                   <button className="outline-button" type="button">查看原件</button>
                   {isDirector ? (
                     <>
-                      <button className="outline-button" type="button">退回补正</button>
-                      <button className="primary-button" type="button">确认入库</button>
+                      <button className="outline-button" type="button" onClick={() => reviewFile(item.id, "request_changes")}>退回补正</button>
+                      <button className="primary-button" type="button" onClick={() => reviewFile(item.id, "approve")}>确认入库</button>
                     </>
                   ) : (
                     <>
-                      <button className="outline-button" type="button">补充资料</button>
-                      <button className="primary-button" type="button">提交总监复核</button>
+                      <button className="outline-button" type="button" onClick={() => reviewFile(item.id, "ai_warning")}>标记异常</button>
+                      <button className="primary-button" type="button" onClick={() => reviewFile(item.id, "ai_pass")}>初审通过</button>
                     </>
                   )}
                 </div>
@@ -1979,6 +2074,24 @@ function ProductFlowFilePanel({
 }) {
   const canSubmit = !isBuyer && operatorRole === "manager";
   const canApprove = !isBuyer && operatorRole === "director";
+  const [uploads, setUploads] = useState<FileUploadRow[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+
+  const loadProductFiles = () => {
+    setLoadState("loading");
+    fetch(`/api/files/?productId=${encodeURIComponent(product.id)}`)
+      .then(async (response) => {
+        const data = (await response.json()) as { uploads?: FileUploadRow[]; error?: string };
+        if (!response.ok) throw new Error(data.error ?? "文件加载失败");
+        setUploads(data.uploads ?? []);
+        setLoadState("ready");
+      })
+      .catch(() => setLoadState("error"));
+  };
+
+  useEffect(() => {
+    loadProductFiles();
+  }, [product.id]);
 
   return (
     <section className="product-flow-panel">
@@ -2054,7 +2167,7 @@ function ProductFlowFilePanel({
                 ) : null}
                 {managerCanUpload ? (
                   <div className="stage-upload-slot">
-                    <UploadDropzone label={`${stage.stage}文件上传`} />
+                    <FileUploadForm product={product} stage={stage} sequence={index + 1} onUploaded={loadProductFiles} />
                     <div className="upload-fields">
                       <button type="button">流程节点：{index + 1}. {stage.stage}</button>
                       <button type="button">业务单号：{stage.stage === "企业意向与成团" ? "GROUP2026-Q4-001" : stage.stage === "二次确认" ? "CONFIRM2026-Q4-001" : "SKU-" + product.id.toUpperCase()}</button>
@@ -2063,9 +2176,6 @@ function ProductFlowFilePanel({
                       <button type="button">绑定商品：{product.cnName}</button>
                       <button type="button">责任岗位：{stage.owner}</button>
                     </div>
-                    <button className="primary-button full" type="button" onClick={() => setView("aiReview")}>
-                      上传后提交总监审批
-                    </button>
                   </div>
                 ) : null}
                 {directorCanApprove ? (
@@ -2094,7 +2204,92 @@ function ProductFlowFilePanel({
           );
         })}
       </div>
+      <section className="product-upload-history">
+        <h3>该商品已上传文件</h3>
+        {loadState === "loading" ? <p>正在加载文件记录...</p> : null}
+        {loadState === "error" ? <p>文件记录加载失败。</p> : null}
+        {loadState === "ready" && uploads.length === 0 ? <p>暂无真实上传文件。</p> : null}
+        {uploads.map((upload) => (
+          <div className="uploaded-file-line" key={upload.id}>
+            <span>{upload.originalFileName}</span>
+            <small>{upload.businessNo} · {Math.round(upload.sizeBytes / 1024)} KB</small>
+            <StatusPill status={upload.manualReviewStatus} />
+          </div>
+        ))}
+      </section>
     </section>
+  );
+}
+
+function FileUploadForm({
+  product,
+  stage,
+  sequence,
+  onUploaded,
+}: {
+  product: Product;
+  stage: (typeof productFlowFiles)[number];
+  sequence: number;
+  onUploaded: () => void;
+}) {
+  const [file, setFile] = useState<File | null>(null);
+  const [businessNo, setBusinessNo] = useState(`SKU-${product.id.toUpperCase()}-${sequence}`);
+  const [requiredFileType, setRequiredFileType] = useState(stage.files[0] ?? "流程文件");
+  const [message, setMessage] = useState("");
+
+  const upload = async () => {
+    if (!file) {
+      setMessage("请先选择要上传的文件。");
+      return;
+    }
+    setMessage("正在上传文件...");
+    const formData = new FormData();
+    formData.set("productId", product.id);
+    formData.set("stage", stage.stage);
+    formData.set("requiredFileType", requiredFileType);
+    formData.set("ownerRole", stage.owner);
+    formData.set("businessNo", businessNo);
+    formData.set("sequence", String(sequence));
+    formData.set("file", file);
+
+    try {
+      const response = await fetch("/api/files/", {
+        method: "POST",
+        body: formData,
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "上传失败");
+      setMessage("文件已上传并进入 AI 初审队列。");
+      setFile(null);
+      onUploaded();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "上传失败");
+    }
+  };
+
+  return (
+    <div className="real-upload-form">
+      <label>
+        <span>文件类型</span>
+        <select value={requiredFileType} onChange={(event) => setRequiredFileType(event.target.value)}>
+          {stage.files.map((fileType) => (
+            <option key={fileType} value={fileType}>{fileType}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        <span>业务单号</span>
+        <input value={businessNo} onChange={(event) => setBusinessNo(event.target.value)} />
+      </label>
+      <label>
+        <span>选择文件</span>
+        <input type="file" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+      </label>
+      <button className="primary-button full" type="button" onClick={upload}>
+        上传并进入初审
+      </button>
+      {message ? <p className="upload-message">{message}</p> : null}
+    </div>
   );
 }
 

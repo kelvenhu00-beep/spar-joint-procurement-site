@@ -1,7 +1,31 @@
-import { asc } from "drizzle-orm";
+import { asc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { products } from "../../../db/schema";
-import { serverError } from "../_utils";
+import { badRequest, makeId, serverError } from "../_utils";
+
+type ProductPayload = {
+  id?: string;
+  cnName?: string;
+  brand?: string;
+  enName?: string;
+  country?: string;
+  category?: string;
+  spec?: string;
+  caseSpec?: string;
+  shelfLifeMonths?: number | string;
+  estimatedLandedCostCny?: number | string;
+  retailPriceBand?: string;
+  grossMarginBand?: string;
+  moqBoxes?: number | string;
+  last12MonthBoxes?: number | string;
+  targetBoxes20ft?: number | string;
+  status?: string;
+  authorizationStatus?: string;
+  labelStatus?: string;
+  hsCode?: string;
+  storageRequirement?: string;
+  imagePath?: string;
+};
 
 export async function GET() {
   try {
@@ -10,5 +34,110 @@ export async function GET() {
     return Response.json({ products: rows });
   } catch (error) {
     return serverError(error);
+  }
+}
+
+function requireText(value: string | undefined, field: string) {
+  const text = value?.trim() ?? "";
+  if (!text) throw new Error(`${field} is required`);
+  return text;
+}
+
+function requirePositiveNumber(value: number | string | undefined, field: string) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue) || numberValue <= 0) {
+    throw new Error(`${field} must be a positive number`);
+  }
+  return numberValue;
+}
+
+function requirePositiveInteger(value: number | string | undefined, field: string) {
+  const numberValue = Number(value);
+  if (!Number.isInteger(numberValue) || numberValue <= 0) {
+    throw new Error(`${field} must be a positive integer`);
+  }
+  return numberValue;
+}
+
+export async function POST(request: Request) {
+  try {
+    const payload = (await request.json()) as ProductPayload;
+    const id = payload.id?.trim() || makeId("sku");
+    const db = getDb();
+
+    const [product] = await db
+      .insert(products)
+      .values({
+        id,
+        cnName: requireText(payload.cnName, "cnName"),
+        brand: requireText(payload.brand, "brand"),
+        enName: requireText(payload.enName, "enName"),
+        country: requireText(payload.country, "country"),
+        category: requireText(payload.category, "category"),
+        spec: requireText(payload.spec, "spec"),
+        caseSpec: requireText(payload.caseSpec, "caseSpec"),
+        shelfLifeMonths: requirePositiveInteger(payload.shelfLifeMonths, "shelfLifeMonths"),
+        estimatedLandedCostCny: requirePositiveNumber(payload.estimatedLandedCostCny, "estimatedLandedCostCny"),
+        retailPriceBand: requireText(payload.retailPriceBand, "retailPriceBand"),
+        grossMarginBand: requireText(payload.grossMarginBand, "grossMarginBand"),
+        moqBoxes: requirePositiveInteger(payload.moqBoxes, "moqBoxes"),
+        last12MonthBoxes: Number(payload.last12MonthBoxes ?? 0),
+        targetBoxes20ft: requirePositiveInteger(payload.targetBoxes20ft, "targetBoxes20ft"),
+        status: payload.status?.trim() || "draft",
+        authorizationStatus: payload.authorizationStatus?.trim() || "pending",
+        labelStatus: payload.labelStatus?.trim() || "pending",
+        hsCode: payload.hsCode?.trim() || null,
+        storageRequirement: payload.storageRequirement?.trim() || "常温干燥",
+        imagePath: payload.imagePath?.trim() || "/product-assets/haribo.png",
+      })
+      .returning();
+
+    return Response.json({ product }, { status: 201 });
+  } catch (error) {
+    return badRequest(error instanceof Error ? error.message : "product create failed");
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const payload = (await request.json()) as ProductPayload;
+    const id = payload.id?.trim() ?? "";
+    if (!id) return badRequest("id is required");
+
+    const db = getDb();
+    const [existing] = await db.select().from(products).where(eq(products.id, id)).limit(1);
+    if (!existing) return badRequest("product does not exist");
+
+    const [product] = await db
+      .update(products)
+      .set({
+        cnName: payload.cnName?.trim() || existing.cnName,
+        brand: payload.brand?.trim() || existing.brand,
+        enName: payload.enName?.trim() || existing.enName,
+        country: payload.country?.trim() || existing.country,
+        category: payload.category?.trim() || existing.category,
+        spec: payload.spec?.trim() || existing.spec,
+        caseSpec: payload.caseSpec?.trim() || existing.caseSpec,
+        shelfLifeMonths: payload.shelfLifeMonths === undefined ? existing.shelfLifeMonths : requirePositiveInteger(payload.shelfLifeMonths, "shelfLifeMonths"),
+        estimatedLandedCostCny: payload.estimatedLandedCostCny === undefined ? existing.estimatedLandedCostCny : requirePositiveNumber(payload.estimatedLandedCostCny, "estimatedLandedCostCny"),
+        retailPriceBand: payload.retailPriceBand?.trim() || existing.retailPriceBand,
+        grossMarginBand: payload.grossMarginBand?.trim() || existing.grossMarginBand,
+        moqBoxes: payload.moqBoxes === undefined ? existing.moqBoxes : requirePositiveInteger(payload.moqBoxes, "moqBoxes"),
+        last12MonthBoxes: payload.last12MonthBoxes === undefined ? existing.last12MonthBoxes : Number(payload.last12MonthBoxes),
+        targetBoxes20ft: payload.targetBoxes20ft === undefined ? existing.targetBoxes20ft : requirePositiveInteger(payload.targetBoxes20ft, "targetBoxes20ft"),
+        status: payload.status?.trim() || existing.status,
+        authorizationStatus: payload.authorizationStatus?.trim() || existing.authorizationStatus,
+        labelStatus: payload.labelStatus?.trim() || existing.labelStatus,
+        hsCode: payload.hsCode?.trim() || existing.hsCode,
+        storageRequirement: payload.storageRequirement?.trim() || existing.storageRequirement,
+        imagePath: payload.imagePath?.trim() || existing.imagePath,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(products.id, id))
+      .returning();
+
+    return Response.json({ product });
+  } catch (error) {
+    return badRequest(error instanceof Error ? error.message : "product update failed");
   }
 }

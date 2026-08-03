@@ -1,6 +1,6 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { auditLogs, enterprises, products, purchaseIntentions } from "../../../db/schema";
+import { approvals, auditLogs, enterprises, procurementGroups, products, purchaseIntentions } from "../../../db/schema";
 import { badRequest, makeId, serverError } from "../_utils";
 
 const CURRENT_ENTERPRISE_ID = "ent_jiarong";
@@ -12,6 +12,13 @@ type PurchaseIntentionPayload = {
   receivingRegion?: string;
   expectedArrivalWindow?: string;
   note?: string;
+};
+
+type PurchaseIntentionReviewPayload = {
+  id?: string;
+  action?: "submit_for_director" | "approve" | "request_changes" | "reject" | "withdraw";
+  actorRole?: "manager" | "director" | "buyer";
+  comment?: string;
 };
 
 export async function GET() {
@@ -111,6 +118,102 @@ export async function POST(request: Request) {
     });
 
     return Response.json({ purchaseIntention: intention }, { status: 201 });
+  } catch (error) {
+    return serverError(error);
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const payload = (await request.json()) as PurchaseIntentionReviewPayload;
+    const id = payload.id?.trim() ?? "";
+    const action = payload.action;
+    const actorRole = payload.actorRole;
+    const comment = payload.comment?.trim() ?? "";
+
+    if (!id) return badRequest("id is required");
+    if (!action) return badRequest("action is required");
+    if (!actorRole) return badRequest("actorRole is required");
+
+    const db = getDb();
+    const [intention] = await db.select().from(purchaseIntentions).where(eq(purchaseIntentions.id, id)).limit(1);
+    if (!intention) return badRequest("purchase intention does not exist");
+
+    if (action === "submit_for_director" && actorRole !== "manager") {
+      return badRequest("only manager can submit for director review");
+    }
+    if ((action === "approve" || action === "request_changes" || action === "reject") && actorRole !== "director") {
+      return badRequest("only director can approve or reject");
+    }
+    if (action === "withdraw" && actorRole !== "buyer") {
+      return badRequest("only buyer can withdraw");
+    }
+
+    const nextStatusByAction = {
+      submit_for_director: "director_review",
+      approve: "confirmed",
+      request_changes: "changes_requested",
+      reject: "rejected",
+      withdraw: "withdrawn",
+    } as const;
+
+    const [updated] = await db
+      .update(purchaseIntentions)
+      .set({
+        status: nextStatusByAction[action],
+        note: comment ? `${intention.note}\n[${actorRole}] ${comment}`.trim() : intention.note,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(purchaseIntentions.id, id))
+      .returning();
+
+    if (action === "submit_for_director") {
+      await db.insert(approvals).values({
+        id: makeId("appr"),
+        targetType: "purchase_intention",
+        targetId: id,
+        requestedByUserId: "ou_manager_liu",
+        requiredRole: "director",
+        status: "pending",
+        comment,
+      });
+    }
+
+    if (action === "approve") {
+      const [group] = await db.select().from(procurementGroups).where(eq(procurementGroups.productId, intention.productId)).limit(1);
+      if (group) {
+        const nextBoxes = group.currentBoxes + intention.quantityBoxes;
+        await db
+          .update(procurementGroups)
+          .set({
+            currentBoxes: nextBoxes,
+            status: nextBoxes >= group.targetBoxes ? "ready_for_second_confirmation" : group.status,
+            updatedAt: sql`CURRENT_TIMESTAMP`,
+          })
+          .where(eq(procurementGroups.id, group.id));
+      }
+      await db
+        .update(approvals)
+        .set({
+          status: "approved",
+          approverUserId: "ou_director_chen",
+          comment,
+          decidedAt: sql`CURRENT_TIMESTAMP`,
+        })
+        .where(eq(approvals.targetId, id));
+    }
+
+    await db.insert(auditLogs).values({
+      id: makeId("audit"),
+      actorType: actorRole === "buyer" ? "enterprise_user" : "operator_user",
+      actorId: actorRole === "buyer" ? CURRENT_ENTERPRISE_USER_ID : actorRole === "director" ? "ou_director_chen" : "ou_manager_liu",
+      action: `purchase_intention.${action}`,
+      targetType: "purchase_intention",
+      targetId: id,
+      metadataJson: JSON.stringify({ comment }),
+    });
+
+    return Response.json({ purchaseIntention: updated });
   } catch (error) {
     return serverError(error);
   }

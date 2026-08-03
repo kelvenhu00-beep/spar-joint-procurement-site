@@ -28,6 +28,7 @@ test("build output includes product imagery used by the platform", () => {
 test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "app", "api", "purchase-intentions", "route.ts")).isFile());
   assert.ok(statSync(join(root, "app", "api", "products", "route.ts")).isFile());
+  assert.ok(statSync(join(root, "app", "api", "files", "route.ts")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0000_daffy_stark_industries.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0001_seed_initial_data.sql")).isFile());
 });
