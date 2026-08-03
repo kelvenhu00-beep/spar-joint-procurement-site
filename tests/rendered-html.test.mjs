@@ -73,3 +73,11 @@ test("overseas purchase stage has structured fields and full document gate", () 
   assert.ok(orderRoute.includes("overseasSupplierName") && orderRoute.includes("proformaInvoiceNo"), "orders API must expose overseas purchase fields");
   assert.ok(page.includes("overseas-purchase-panel"), "order detail must render overseas purchase form");
 });
+
+test("international shipping stage has transport fields", () => {
+  const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  assert.ok(orderRoute.includes("international_shipping: [\"Booking\", \"提单\", \"装柜照片\"]"), "shipping gate must require booking, bill of lading and loading photos");
+  assert.ok(orderRoute.includes("containerNo") && orderRoute.includes("sealNo") && orderRoute.includes("etd") && orderRoute.includes("eta"), "orders API must expose shipping fields");
+  assert.ok(page.includes("shipping-info-panel") && page.includes("saveShippingFields"), "order detail must render shipping form");
+});

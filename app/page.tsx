@@ -1756,6 +1756,12 @@ function OrderDetailPage({
     overseasAmount: "",
     overseasPaymentStatus: "待付款",
   });
+  const [shippingForm, setShippingForm] = useState({
+    containerNo: "",
+    sealNo: "",
+    etd: "",
+    eta: "",
+  });
 
   const loadOrder = () => {
     if (!orderId) {
@@ -1786,6 +1792,12 @@ function OrderDetailPage({
           overseasCurrency: data.order.overseasCurrency ?? "EUR",
           overseasAmount: data.order.overseasAmount === null || data.order.overseasAmount === undefined ? "" : String(data.order.overseasAmount),
           overseasPaymentStatus: data.order.overseasPaymentStatus ?? "待付款",
+        });
+        setShippingForm({
+          containerNo: data.order.containerNo ?? "",
+          sealNo: data.order.sealNo ?? "",
+          etd: data.order.etd ?? "",
+          eta: data.order.eta ?? "",
         });
         setLoadState("ready");
       })
@@ -1868,6 +1880,30 @@ function OrderDetailPage({
     }
   };
 
+  const saveShippingFields = async () => {
+    if (!order) return;
+    setActionState("正在保存国际运输信息...");
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "request_changes",
+          nextStage: order.currentStage,
+          ...shippingForm,
+          note: "经理补充国际运输结构化字段。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "保存失败");
+      setActionState("国际运输信息已保存。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "保存失败");
+    }
+  };
+
   if (loadState === "loading") {
     return <section className="panel order-detail-panel"><h2>正在加载订单详情...</h2></section>;
   }
@@ -1890,6 +1926,7 @@ function OrderDetailPage({
   const nextStageNeedsDirector = order.nextStage === "contract" || order.nextStage === "settlement";
   const canAdvanceByRole = !isBuyer && Boolean(order.nextStage) && (nextStageNeedsDirector ? operatorRole === "director" : operatorRole === "manager");
   const canEditOverseasFields = !isBuyer && operatorRole === "manager" && order.currentStage === "overseas_purchase";
+  const canEditShippingFields = !isBuyer && operatorRole === "manager" && order.currentStage === "international_shipping";
 
   return (
     <>
@@ -1962,6 +1999,25 @@ function OrderDetailPage({
             <label><span>对外付款状态</span><input value={overseasForm.overseasPaymentStatus} disabled={!canEditOverseasFields} onChange={(event) => setOverseasForm({ ...overseasForm, overseasPaymentStatus: event.target.value })} /></label>
           </div>
           {canEditOverseasFields ? <button className="primary-button" type="button" onClick={saveOverseasFields}>保存海外采购信息</button> : null}
+        </section>
+      ) : null}
+
+      {order.currentStage === "international_shipping" ? (
+        <section className="panel overseas-purchase-panel shipping-info-panel">
+          <div className="panel-head">
+            <div>
+              <h2>国际运输信息</h2>
+              <p>记录 Booking 后的柜号、封签号、ETD 和 ETA，作为进入报关清关前的结构化资料。</p>
+            </div>
+            <StatusPill status={order.containerNo && order.sealNo ? "运输信息已录入" : "待补充"} />
+          </div>
+          <div className="overseas-form-grid">
+            <label><span>柜号</span><input value={shippingForm.containerNo} disabled={!canEditShippingFields} onChange={(event) => setShippingForm({ ...shippingForm, containerNo: event.target.value })} /></label>
+            <label><span>封签号</span><input value={shippingForm.sealNo} disabled={!canEditShippingFields} onChange={(event) => setShippingForm({ ...shippingForm, sealNo: event.target.value })} /></label>
+            <label><span>ETD</span><input type="date" value={shippingForm.etd} disabled={!canEditShippingFields} onChange={(event) => setShippingForm({ ...shippingForm, etd: event.target.value })} /></label>
+            <label><span>ETA</span><input type="date" value={shippingForm.eta} disabled={!canEditShippingFields} onChange={(event) => setShippingForm({ ...shippingForm, eta: event.target.value })} /></label>
+          </div>
+          {canEditShippingFields ? <button className="primary-button" type="button" onClick={saveShippingFields}>保存国际运输信息</button> : null}
         </section>
       ) : null}
 
