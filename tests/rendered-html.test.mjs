@@ -39,6 +39,7 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "drizzle", "0003_procurement_orders_workflow.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0004_order_bound_documents_files.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0005_overseas_purchase_fields.sql")).isFile());
+  assert.ok(statSync(join(root, "drizzle", "0006_customs_clearance_fields.sql")).isFile());
 });
 
 test("order workflow enforces reviewed stage documents", () => {
@@ -80,4 +81,14 @@ test("international shipping stage has transport fields", () => {
   assert.ok(orderRoute.includes("international_shipping: [\"Booking\", \"提单\", \"装柜照片\"]"), "shipping gate must require booking, bill of lading and loading photos");
   assert.ok(orderRoute.includes("containerNo") && orderRoute.includes("sealNo") && orderRoute.includes("etd") && orderRoute.includes("eta"), "orders API must expose shipping fields");
   assert.ok(page.includes("shipping-info-panel") && page.includes("saveShippingFields"), "order detail must render shipping form");
+});
+
+test("customs clearance stage has declaration, broker and tax fields", () => {
+  const orderRoute = readFileSync(join(root, "app", "api", "orders", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  const migration = readFileSync(join(root, "drizzle", "0006_customs_clearance_fields.sql"), "utf8");
+  assert.ok(orderRoute.includes("customs_clearance: [\"Commercial Invoice\", \"Packing List\", \"报关单\", \"税单\"]"), "customs gate must require invoice, packing list, declaration and tax form");
+  assert.ok(orderRoute.includes("customsBrokerName") && orderRoute.includes("actualTaxPaidCny"), "orders API must expose customs clearance fields");
+  assert.ok(page.includes("customs-clearance-panel") && page.includes("saveCustomsFields"), "order detail must render customs clearance form");
+  assert.ok(migration.includes("customs_broker_name") && migration.includes("actual_tax_paid_cny"), "customs migration must add broker and tax fields");
 });

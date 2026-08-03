@@ -171,6 +171,13 @@ type ProcurementOrderRow = {
   containerNo: string | null;
   sealNo: string | null;
   customsDeclarationNo: string | null;
+  customsBrokerName: string | null;
+  customsReleaseStatus: string | null;
+  customsReleasedAt: string | null;
+  estimatedDutyCny: number | null;
+  estimatedVatCny: number | null;
+  actualTaxPaidCny: number | null;
+  customsInspectionStatus: string | null;
   overseasSupplierName: string | null;
   overseasPoNo: string | null;
   proformaInvoiceNo: string | null;
@@ -1762,6 +1769,16 @@ function OrderDetailPage({
     etd: "",
     eta: "",
   });
+  const [customsForm, setCustomsForm] = useState({
+    customsDeclarationNo: "",
+    customsBrokerName: "",
+    customsReleaseStatus: "资料待提交",
+    customsReleasedAt: "",
+    estimatedDutyCny: "",
+    estimatedVatCny: "",
+    actualTaxPaidCny: "",
+    customsInspectionStatus: "待判定",
+  });
 
   const loadOrder = () => {
     if (!orderId) {
@@ -1798,6 +1815,16 @@ function OrderDetailPage({
           sealNo: data.order.sealNo ?? "",
           etd: data.order.etd ?? "",
           eta: data.order.eta ?? "",
+        });
+        setCustomsForm({
+          customsDeclarationNo: data.order.customsDeclarationNo ?? "",
+          customsBrokerName: data.order.customsBrokerName ?? "",
+          customsReleaseStatus: data.order.customsReleaseStatus ?? "资料待提交",
+          customsReleasedAt: data.order.customsReleasedAt ?? "",
+          estimatedDutyCny: data.order.estimatedDutyCny === null || data.order.estimatedDutyCny === undefined ? "" : String(data.order.estimatedDutyCny),
+          estimatedVatCny: data.order.estimatedVatCny === null || data.order.estimatedVatCny === undefined ? "" : String(data.order.estimatedVatCny),
+          actualTaxPaidCny: data.order.actualTaxPaidCny === null || data.order.actualTaxPaidCny === undefined ? "" : String(data.order.actualTaxPaidCny),
+          customsInspectionStatus: data.order.customsInspectionStatus ?? "待判定",
         });
         setLoadState("ready");
       })
@@ -1904,6 +1931,30 @@ function OrderDetailPage({
     }
   };
 
+  const saveCustomsFields = async () => {
+    if (!order) return;
+    setActionState("正在保存报关清关信息...");
+    try {
+      const response = await fetch("/api/orders/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: order.id,
+          action: "request_changes",
+          nextStage: order.currentStage,
+          ...customsForm,
+          note: "经理补充报关清关结构化字段。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "保存失败");
+      setActionState("报关清关信息已保存。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "保存失败");
+    }
+  };
+
   if (loadState === "loading") {
     return <section className="panel order-detail-panel"><h2>正在加载订单详情...</h2></section>;
   }
@@ -1927,6 +1978,7 @@ function OrderDetailPage({
   const canAdvanceByRole = !isBuyer && Boolean(order.nextStage) && (nextStageNeedsDirector ? operatorRole === "director" : operatorRole === "manager");
   const canEditOverseasFields = !isBuyer && operatorRole === "manager" && order.currentStage === "overseas_purchase";
   const canEditShippingFields = !isBuyer && operatorRole === "manager" && order.currentStage === "international_shipping";
+  const canEditCustomsFields = !isBuyer && operatorRole === "manager" && order.currentStage === "customs_clearance";
 
   return (
     <>
@@ -2018,6 +2070,29 @@ function OrderDetailPage({
             <label><span>ETA</span><input type="date" value={shippingForm.eta} disabled={!canEditShippingFields} onChange={(event) => setShippingForm({ ...shippingForm, eta: event.target.value })} /></label>
           </div>
           {canEditShippingFields ? <button className="primary-button" type="button" onClick={saveShippingFields}>保存国际运输信息</button> : null}
+        </section>
+      ) : null}
+
+      {order.currentStage === "customs_clearance" ? (
+        <section className="panel overseas-purchase-panel customs-clearance-panel">
+          <div className="panel-head">
+            <div>
+              <h2>报关清关信息</h2>
+              <p>记录报关单号、报关行、税费预估、实际缴税和放行状态，作为进入入库分拣前的结构化资料。</p>
+            </div>
+            <StatusPill status={order.customsReleaseStatus ?? "待补充"} />
+          </div>
+          <div className="overseas-form-grid">
+            <label><span>报关单号</span><input value={customsForm.customsDeclarationNo} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, customsDeclarationNo: event.target.value })} /></label>
+            <label><span>报关行</span><input value={customsForm.customsBrokerName} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, customsBrokerName: event.target.value })} /></label>
+            <label><span>放行状态</span><input value={customsForm.customsReleaseStatus} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, customsReleaseStatus: event.target.value })} /></label>
+            <label><span>放行日期</span><input type="date" value={customsForm.customsReleasedAt} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, customsReleasedAt: event.target.value })} /></label>
+            <label><span>预估关税</span><input value={customsForm.estimatedDutyCny} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, estimatedDutyCny: event.target.value })} /></label>
+            <label><span>预估增值税</span><input value={customsForm.estimatedVatCny} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, estimatedVatCny: event.target.value })} /></label>
+            <label><span>实际缴税金额</span><input value={customsForm.actualTaxPaidCny} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, actualTaxPaidCny: event.target.value })} /></label>
+            <label><span>查验状态</span><input value={customsForm.customsInspectionStatus} disabled={!canEditCustomsFields} onChange={(event) => setCustomsForm({ ...customsForm, customsInspectionStatus: event.target.value })} /></label>
+          </div>
+          {canEditCustomsFields ? <button className="primary-button" type="button" onClick={saveCustomsFields}>保存报关清关信息</button> : null}
         </section>
       ) : null}
 

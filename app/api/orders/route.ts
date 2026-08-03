@@ -70,6 +70,13 @@ type UpdateOrderPayload = {
   containerNo?: string;
   sealNo?: string;
   customsDeclarationNo?: string;
+  customsBrokerName?: string;
+  customsReleaseStatus?: string;
+  customsReleasedAt?: string;
+  estimatedDutyCny?: number | string;
+  estimatedVatCny?: number | string;
+  actualTaxPaidCny?: number | string;
+  customsInspectionStatus?: string;
   overseasSupplierName?: string;
   overseasPoNo?: string;
   proformaInvoiceNo?: string;
@@ -181,6 +188,13 @@ export async function GET(request: Request) {
         containerNo: procurementOrders.containerNo,
         sealNo: procurementOrders.sealNo,
         customsDeclarationNo: procurementOrders.customsDeclarationNo,
+        customsBrokerName: procurementOrders.customsBrokerName,
+        customsReleaseStatus: procurementOrders.customsReleaseStatus,
+        customsReleasedAt: procurementOrders.customsReleasedAt,
+        estimatedDutyCny: procurementOrders.estimatedDutyCny,
+        estimatedVatCny: procurementOrders.estimatedVatCny,
+        actualTaxPaidCny: procurementOrders.actualTaxPaidCny,
+        customsInspectionStatus: procurementOrders.customsInspectionStatus,
         overseasSupplierName: procurementOrders.overseasSupplierName,
         overseasPoNo: procurementOrders.overseasPoNo,
         proformaInvoiceNo: procurementOrders.proformaInvoiceNo,
@@ -362,6 +376,15 @@ export async function PATCH(request: Request) {
     if (payload.overseasAmount !== undefined && payload.overseasAmount !== "" && !Number.isFinite(Number(payload.overseasAmount))) {
       return badRequest("overseasAmount must be a number");
     }
+    if (payload.estimatedDutyCny !== undefined && payload.estimatedDutyCny !== "" && !Number.isFinite(Number(payload.estimatedDutyCny))) {
+      return badRequest("estimatedDutyCny must be a number");
+    }
+    if (payload.estimatedVatCny !== undefined && payload.estimatedVatCny !== "" && !Number.isFinite(Number(payload.estimatedVatCny))) {
+      return badRequest("estimatedVatCny must be a number");
+    }
+    if (payload.actualTaxPaidCny !== undefined && payload.actualTaxPaidCny !== "" && !Number.isFinite(Number(payload.actualTaxPaidCny))) {
+      return badRequest("actualTaxPaidCny must be a number");
+    }
 
     if (payload.action !== "mark_exception" && payload.action !== "request_changes") {
       const currentStage = current.currentStage as WorkflowStage;
@@ -394,6 +417,13 @@ export async function PATCH(request: Request) {
         containerNo: payload.containerNo?.trim() || current.containerNo,
         sealNo: payload.sealNo?.trim() || current.sealNo,
         customsDeclarationNo: payload.customsDeclarationNo?.trim() || current.customsDeclarationNo,
+        customsBrokerName: payload.customsBrokerName?.trim() || current.customsBrokerName,
+        customsReleaseStatus: payload.customsReleaseStatus?.trim() || current.customsReleaseStatus,
+        customsReleasedAt: payload.customsReleasedAt?.trim() || current.customsReleasedAt,
+        estimatedDutyCny: payload.estimatedDutyCny === undefined || payload.estimatedDutyCny === "" ? current.estimatedDutyCny : Number(payload.estimatedDutyCny),
+        estimatedVatCny: payload.estimatedVatCny === undefined || payload.estimatedVatCny === "" ? current.estimatedVatCny : Number(payload.estimatedVatCny),
+        actualTaxPaidCny: payload.actualTaxPaidCny === undefined || payload.actualTaxPaidCny === "" ? current.actualTaxPaidCny : Number(payload.actualTaxPaidCny),
+        customsInspectionStatus: payload.customsInspectionStatus?.trim() || current.customsInspectionStatus,
         overseasSupplierName: payload.overseasSupplierName?.trim() || current.overseasSupplierName,
         overseasPoNo: payload.overseasPoNo?.trim() || current.overseasPoNo,
         proformaInvoiceNo: payload.proformaInvoiceNo?.trim() || current.proformaInvoiceNo,
@@ -421,6 +451,13 @@ export async function PATCH(request: Request) {
         containerNo: payload.containerNo,
         sealNo: payload.sealNo,
         customsDeclarationNo: payload.customsDeclarationNo,
+        customsBrokerName: payload.customsBrokerName,
+        customsReleaseStatus: payload.customsReleaseStatus,
+        customsReleasedAt: payload.customsReleasedAt,
+        estimatedDutyCny: payload.estimatedDutyCny,
+        estimatedVatCny: payload.estimatedVatCny,
+        actualTaxPaidCny: payload.actualTaxPaidCny,
+        customsInspectionStatus: payload.customsInspectionStatus,
         overseasSupplierName: payload.overseasSupplierName,
         overseasPoNo: payload.overseasPoNo,
         proformaInvoiceNo: payload.proformaInvoiceNo,
