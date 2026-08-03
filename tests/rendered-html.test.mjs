@@ -74,12 +74,21 @@ test("business document review separates manager and director permissions", () =
   assert.ok(documentRoute.includes("只有商品总监可以审批、归档或作废业务单据。"), "director must be required for document decisions");
 });
 
+test("account management supports status and password operations", () => {
+  const userRoute = readFileSync(join(root, "app", "api", "users", "route.ts"), "utf8");
+  const page = readFileSync(join(root, "app", "page.tsx"), "utf8");
+  assert.ok(userRoute.includes("reset_password") && userRoute.includes("deactivate") && userRoute.includes("activate"), "users API must support account operations");
+  assert.ok(userRoute.includes("只有总监账号可以维护内部账号。"), "operator account maintenance must require director");
+  assert.ok(page.includes("updateAccount") && page.includes("重置密码") && page.includes("停用"), "account UI must expose governance actions");
+});
+
 test("file downloads are permission checked", () => {
   const fileRoute = readFileSync(join(root, "app", "api", "files", "route.ts"), "utf8");
   assert.ok(fileRoute.includes("download") && fileRoute.includes("Content-Disposition"), "missing real file download response");
   assert.ok(fileRoute.includes("document.enterpriseId === user.enterpriseId"), "buyer downloads must be enterprise scoped");
   assert.ok(fileRoute.includes("document.visibility !== \"internal\""), "buyer downloads must hide internal files");
   assert.ok(fileRoute.includes("document.status === \"approved\""), "buyer downloads must require approved files");
+  assert.ok(fileRoute.includes("buyerVisibleStage") && fileRoute.includes("uploads.filter"), "buyer upload lists must also hide internal files");
 });
 
 test("enterprise upload is limited to payment proof", () => {

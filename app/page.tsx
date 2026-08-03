@@ -3272,6 +3272,28 @@ function ClientsPage() {
     }
   };
 
+  const updateAccount = async (userType: "enterprise_user" | "operator_user", id: string, action: "activate" | "deactivate" | "reset_password") => {
+    const password = action === "reset_password" ? window.prompt("请输入新的临时密码，至少10位") ?? "" : "";
+    if (action === "reset_password" && password.length < 10) {
+      setAccountState("临时密码至少需要10位。");
+      return;
+    }
+    setAccountState("正在更新账号...");
+    try {
+      const response = await fetch("/api/users/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userType, id, action, password }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "账号更新失败");
+      setAccountState("账号已更新。");
+      loadAccounts();
+    } catch (error) {
+      setAccountState(error instanceof Error ? error.message : "账号更新失败");
+    }
+  };
+
   const clients = [
     ["广东嘉荣超市有限公司", "华南区域头部超市", "合作中", "★★★★★", "采购负责人", "客户经理已登记", "¥ 5,680,000", "2026-05-20"],
     ["家家悦集团股份有限公司", "山东区域连锁超市", "合作中", "★★★★★", "进口食品负责人", "客户经理已登记", "¥ 4,320,000", "2026-05-18"],
@@ -3307,7 +3329,9 @@ function ClientsPage() {
             <h3>企业员工账号</h3>
             {enterpriseUsers.map((user) => (
               <div className="account-line" key={user.id}>
-                <span>{user.name}</span><small>{user.email} · {user.enterpriseId} · {user.role}</small><StatusPill status={user.hasPassword ? "可登录" : "未设置密码"} />
+                <span>{user.name}</span><small>{user.email} · {user.enterpriseId} · {user.role}</small><StatusPill status={user.status === "active" && user.hasPassword ? "可登录" : user.status === "disabled" ? "已停用" : "未设置密码"} />
+                <button type="button" onClick={() => updateAccount("enterprise_user", user.id, user.status === "active" ? "deactivate" : "activate")}>{user.status === "active" ? "停用" : "启用"}</button>
+                <button type="button" onClick={() => updateAccount("enterprise_user", user.id, "reset_password")}>重置密码</button>
               </div>
             ))}
           </article>
@@ -3315,7 +3339,9 @@ function ClientsPage() {
             <h3>内部后台账号</h3>
             {operatorUsers.map((user) => (
               <div className="account-line" key={user.id}>
-                <span>{user.name}</span><small>{user.email} · {user.role}</small><StatusPill status={user.hasPassword ? "可登录" : "未设置密码"} />
+                <span>{user.name}</span><small>{user.email} · {user.role}</small><StatusPill status={user.status === "active" && user.hasPassword ? "可登录" : user.status === "disabled" ? "已停用" : "未设置密码"} />
+                <button type="button" onClick={() => updateAccount("operator_user", user.id, user.status === "active" ? "deactivate" : "activate")}>{user.status === "active" ? "停用" : "启用"}</button>
+                <button type="button" onClick={() => updateAccount("operator_user", user.id, "reset_password")}>重置密码</button>
               </div>
             ))}
           </article>

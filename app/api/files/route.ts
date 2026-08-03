@@ -16,6 +16,10 @@ type FileReviewPayload = {
   summary?: string;
 };
 
+function buyerVisibleStage(stage: string) {
+  return stage.includes("二次确认") || stage.includes("合同") || stage.includes("预付款") || stage.includes("二段配送") || stage.includes("签收") || stage.includes("结算归档");
+}
+
 function safeFileName(name: string) {
   return name.replace(/[^\w.\-\u4e00-\u9fa5]+/g, "_").slice(0, 120) || "upload.bin";
 }
@@ -92,6 +96,19 @@ export async function GET(request: Request) {
       : db.select().from(fileUploads).orderBy(desc(fileUploads.uploadedAt)).limit(100);
 
     const [requirements, uploads] = await Promise.all([requirementsQuery, uploadsQuery]);
+
+    if (user.userType === "enterprise_user") {
+      const uploadIds = uploads.map((upload) => upload.id);
+      const visibleDocuments = (await db.select().from(businessDocuments).orderBy(desc(businessDocuments.createdAt))).filter(
+        (document) =>
+          document.enterpriseId === user.enterpriseId &&
+          document.fileUploadId &&
+          uploadIds.includes(document.fileUploadId) &&
+          document.visibility !== "internal",
+      );
+      const visibleUploadIds = new Set(visibleDocuments.map((document) => document.fileUploadId).filter(Boolean));
+      return Response.json({ requirements, uploads: uploads.filter((upload) => visibleUploadIds.has(upload.id)) });
+    }
 
     return Response.json({ requirements, uploads });
   } catch (error) {
@@ -171,7 +188,7 @@ export async function POST(request: Request) {
         requiredFileType,
         ownerRole,
         requiredBeforeStatus: "next_stage",
-        buyerVisibility: stage.includes("二次确认") || stage.includes("合同") || stage.includes("交付") ? "visible" : "hidden",
+        buyerVisibility: buyerVisibleStage(stage) ? "visible" : "hidden",
         sequence: Number(formData.get("sequence") ?? 99),
       });
     }
@@ -216,7 +233,7 @@ export async function POST(request: Request) {
       stage,
       title: `${product.cnName} · ${requiredFileType}`,
       status: "ai_review",
-      visibility: stage.includes("二次确认") || stage.includes("合同") || stage.includes("预付款") || stage.includes("交付") ? "buyer_visible_after_review" : "internal",
+      visibility: buyerVisibleStage(stage) ? "buyer_visible_after_review" : "internal",
       createdByUserType: user.userType,
       createdByUserId: user.id,
       metadataJson: JSON.stringify({ businessNo, originalFileName, orderId: orderId || null }),
