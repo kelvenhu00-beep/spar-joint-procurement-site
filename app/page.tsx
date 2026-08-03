@@ -707,6 +707,14 @@ function canDownloadStatus(status: string) {
   return status === "可下载" || status === "已审核";
 }
 
+function fileDownloadUrl(id: string) {
+  return `/api/files/?id=${encodeURIComponent(id)}&download=1`;
+}
+
+function openFileDownload(id: string) {
+  window.open(fileDownloadUrl(id), "_blank", "noopener,noreferrer");
+}
+
 function decisionInfoRows(product: Product) {
   const coldChain = product.category.includes("巧克力") || product.category.includes("身体乳");
   return [
@@ -1948,6 +1956,7 @@ function OrderDetailPage({
                             <span>{upload.originalFileName}</span>
                             <small>{upload.businessNo} · {Math.round(upload.sizeBytes / 1024)} KB</small>
                             <StatusPill status={upload.manualReviewStatus} />
+                            <button className="plain-link inline-action" type="button" onClick={() => openFileDownload(upload.id)}>下载</button>
                             {!isBuyer && operatorRole === "director" ? <button className="plain-link inline-action" type="button" onClick={() => reviewFile(upload.id, "approve")}>复核通过</button> : null}
                           </div>
                         ))}
@@ -2236,7 +2245,14 @@ function FileCenterPage({
                   <small>{document.enterpriseName ?? document.enterpriseId ?? "内部单据"}</small>
                 </div>
                 <StatusPill status={document.status} />
-                <button className="outline-button" type="button">查看</button>
+                <button
+                  className="outline-button"
+                  type="button"
+                  disabled={!document.fileUploadId}
+                  onClick={() => document.fileUploadId ? openFileDownload(document.fileUploadId) : undefined}
+                >
+                  下载
+                </button>
               </article>
             ))}
           </div>
@@ -2432,7 +2448,7 @@ function AiReviewPage({ operatorRole, setView }: { operatorRole: OperatorRole; s
                   <p>{item.aiReviewSummary ?? "已接收文件，等待初审和人工复核。"}</p>
                 </div>
                 <div className="review-actions">
-                  <button className="outline-button" type="button">查看原件</button>
+                  <button className="outline-button" type="button" onClick={() => openFileDownload(item.id)}>查看原件</button>
                   {isDirector ? (
                     <>
                       <button className="outline-button" type="button" onClick={() => reviewFile(item.id, "request_changes")}>退回补正</button>
@@ -3123,6 +3139,7 @@ function ProductFlowFilePanel({
             <span>{upload.originalFileName}</span>
             <small>{upload.businessNo} · {Math.round(upload.sizeBytes / 1024)} KB</small>
             <StatusPill status={upload.manualReviewStatus} />
+            <button className="plain-link inline-action" type="button" onClick={() => openFileDownload(upload.id)}>下载</button>
           </div>
         ))}
       </section>

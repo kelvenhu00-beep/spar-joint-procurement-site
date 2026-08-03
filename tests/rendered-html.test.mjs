@@ -48,3 +48,11 @@ test("order workflow enforces reviewed stage documents", () => {
   assert.ok(fileRoute.includes("businessDocuments"), "file review must update business documents");
   assert.ok(fileRoute.includes("fileUploadId"), "file review must locate linked business document");
 });
+
+test("file downloads are permission checked", () => {
+  const fileRoute = readFileSync(join(root, "app", "api", "files", "route.ts"), "utf8");
+  assert.ok(fileRoute.includes("download") && fileRoute.includes("Content-Disposition"), "missing real file download response");
+  assert.ok(fileRoute.includes("document.enterpriseId === user.enterpriseId"), "buyer downloads must be enterprise scoped");
+  assert.ok(fileRoute.includes("document.visibility !== \"internal\""), "buyer downloads must hide internal files");
+  assert.ok(fileRoute.includes("document.status === \"approved\""), "buyer downloads must require approved files");
+});

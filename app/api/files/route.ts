@@ -20,15 +20,66 @@ function safeFileName(name: string) {
   return name.replace(/[^\w.\-\u4e00-\u9fa5]+/g, "_").slice(0, 120) || "upload.bin";
 }
 
+function contentDisposition(fileName: string) {
+  const asciiName = fileName.replace(/[^\w.\-]+/g, "_") || "download.bin";
+  return `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+}
+
 export async function GET(request: Request) {
   try {
     const user = await getCurrentUser(request);
     if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id")?.trim();
+    const download = searchParams.get("download") === "1";
     const productId = searchParams.get("productId")?.trim();
     const orderId = searchParams.get("orderId")?.trim();
     const db = getDb();
+
+    if (download) {
+      if (!id) return badRequest("id is required");
+      const [upload] = await db.select().from(fileUploads).where(eq(fileUploads.id, id)).limit(1);
+      if (!upload) return Response.json({ error: "文件不存在。" }, { status: 404 });
+
+      const relatedDocuments = await db.select().from(businessDocuments).where(eq(businessDocuments.fileUploadId, id)).limit(10);
+      if (user.userType === "enterprise_user") {
+        const downloadableDocument = relatedDocuments.find(
+          (document) =>
+            document.enterpriseId === user.enterpriseId &&
+            document.visibility !== "internal" &&
+            (document.status === "approved" || document.status === "archived"),
+        );
+        if (!downloadableDocument) {
+          return Response.json({ error: "当前企业账号无权下载该文件，或文件尚未审核通过。" }, { status: 403 });
+        }
+      }
+
+      const bucket = (env as FilesEnv).FILES;
+      if (!bucket) return Response.json({ error: "文件存储 FILES 未配置，无法下载真实文件。" }, { status: 500 });
+
+      const object = await bucket.get(upload.storageKey);
+      if (!object) return Response.json({ error: "文件对象不存在。" }, { status: 404 });
+
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set("Content-Type", upload.mimeType || headers.get("Content-Type") || "application/octet-stream");
+      headers.set("Content-Length", String(upload.sizeBytes));
+      headers.set("Content-Disposition", contentDisposition(upload.originalFileName));
+      headers.set("Cache-Control", "private, max-age=0, no-store");
+
+      await db.insert(auditLogs).values({
+        id: makeId("audit"),
+        actorType: user.userType,
+        actorId: user.id,
+        action: "file.downloaded",
+        targetType: "file_upload",
+        targetId: id,
+        metadataJson: JSON.stringify({ productId: upload.productId, orderId: upload.orderId }),
+      });
+
+      return new Response(object.body, { headers });
+    }
 
     const requirementsQuery = productId
       ? db.select().from(workflowFileRequirements).where(eq(workflowFileRequirements.productId, productId)).orderBy(asc(workflowFileRequirements.sequence))
