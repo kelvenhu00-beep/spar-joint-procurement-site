@@ -128,6 +128,7 @@ export const fileUploads = sqliteTable("file_uploads", {
   id: text("id").primaryKey(),
   requirementId: text("requirement_id").notNull().references(() => workflowFileRequirements.id),
   productId: text("product_id").notNull().references(() => products.id),
+  orderId: text("order_id"),
   businessNo: text("business_no").notNull(),
   originalFileName: text("original_file_name").notNull(),
   storageKey: text("storage_key").notNull(),
@@ -140,6 +141,7 @@ export const fileUploads = sqliteTable("file_uploads", {
   uploadedAt: text("uploaded_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
   index("file_uploads_product_id_idx").on(table.productId),
+  index("file_uploads_order_id_idx").on(table.orderId),
   index("file_uploads_business_no_idx").on(table.businessNo),
   index("file_uploads_manual_review_status_idx").on(table.manualReviewStatus),
 ]);
@@ -165,6 +167,7 @@ export const businessDocuments = sqliteTable("business_documents", {
   documentNo: text("document_no").notNull(),
   documentType: text("document_type").notNull(),
   productId: text("product_id").references(() => products.id),
+  orderId: text("order_id"),
   enterpriseId: text("enterprise_id").references(() => enterprises.id),
   purchaseIntentionId: text("purchase_intention_id").references(() => purchaseIntentions.id),
   fileUploadId: text("file_upload_id").references(() => fileUploads.id),
@@ -184,6 +187,7 @@ export const businessDocuments = sqliteTable("business_documents", {
 }, (table) => [
   uniqueIndex("business_documents_document_no_unique").on(table.documentNo),
   index("business_documents_product_id_idx").on(table.productId),
+  index("business_documents_order_id_idx").on(table.orderId),
   index("business_documents_enterprise_id_idx").on(table.enterpriseId),
   index("business_documents_status_idx").on(table.status),
   index("business_documents_stage_idx").on(table.stage),

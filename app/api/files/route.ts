@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getDb } from "../../../db";
-import { auditLogs, businessDocuments, fileUploads, products, workflowFileRequirements } from "../../../db/schema";
+import { auditLogs, businessDocuments, fileUploads, procurementOrders, products, workflowFileRequirements } from "../../../db/schema";
 import { badRequest, makeId, serverError } from "../_utils";
 import { getCurrentUser } from "../_auth";
 
@@ -27,13 +27,16 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId")?.trim();
+    const orderId = searchParams.get("orderId")?.trim();
     const db = getDb();
 
     const requirementsQuery = productId
       ? db.select().from(workflowFileRequirements).where(eq(workflowFileRequirements.productId, productId)).orderBy(asc(workflowFileRequirements.sequence))
       : db.select().from(workflowFileRequirements).orderBy(asc(workflowFileRequirements.productId), asc(workflowFileRequirements.sequence));
 
-    const uploadsQuery = productId
+    const uploadsQuery = orderId
+      ? db.select().from(fileUploads).where(eq(fileUploads.orderId, orderId)).orderBy(desc(fileUploads.uploadedAt))
+      : productId
       ? db.select().from(fileUploads).where(eq(fileUploads.productId, productId)).orderBy(desc(fileUploads.uploadedAt))
       : db.select().from(fileUploads).orderBy(desc(fileUploads.uploadedAt)).limit(100);
 
@@ -60,6 +63,7 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const productId = String(formData.get("productId") ?? "").trim();
+    const orderId = String(formData.get("orderId") ?? "").trim();
     const stage = String(formData.get("stage") ?? "").trim();
     const requiredFileType = String(formData.get("requiredFileType") ?? "").trim();
     const ownerRole = String(formData.get("ownerRole") ?? "manager").trim();
@@ -75,6 +79,10 @@ export async function POST(request: Request) {
     const db = getDb();
     const [product] = await db.select().from(products).where(eq(products.id, productId)).limit(1);
     if (!product) return badRequest("product does not exist");
+
+    const [order] = orderId ? await db.select().from(procurementOrders).where(eq(procurementOrders.id, orderId)).limit(1) : [];
+    if (orderId && !order) return badRequest("order does not exist");
+    if (order && order.productId !== productId) return badRequest("order product does not match productId");
 
     const [existingRequirement] = await db
       .select()
@@ -111,6 +119,7 @@ export async function POST(request: Request) {
         id: uploadId,
         requirementId,
         productId,
+        orderId: orderId || null,
         businessNo,
         originalFileName,
         storageKey,
@@ -128,6 +137,9 @@ export async function POST(request: Request) {
       documentNo: `DOC-${Date.now()}-${uploadId.slice(-6)}`,
       documentType: requiredFileType,
       productId,
+      orderId: orderId || null,
+      enterpriseId: order?.enterpriseId ?? null,
+      purchaseIntentionId: order?.purchaseIntentionId ?? null,
       fileUploadId: uploadId,
       stage,
       title: `${product.cnName} · ${requiredFileType}`,
@@ -135,7 +147,7 @@ export async function POST(request: Request) {
       visibility: stage.includes("二次确认") || stage.includes("合同") || stage.includes("交付") ? "buyer_visible_after_review" : "internal",
       createdByUserType: "operator_user",
       createdByUserId: user.id,
-      metadataJson: JSON.stringify({ businessNo, originalFileName }),
+      metadataJson: JSON.stringify({ businessNo, originalFileName, orderId: orderId || null }),
     });
 
     await db.insert(auditLogs).values({
@@ -145,7 +157,7 @@ export async function POST(request: Request) {
       action: "file.uploaded",
       targetType: "file_upload",
       targetId: uploadId,
-      metadataJson: JSON.stringify({ productId, stage, requiredFileType, businessNo }),
+      metadataJson: JSON.stringify({ productId, orderId: orderId || null, stage, requiredFileType, businessNo }),
     });
 
     return Response.json({ upload }, { status: 201 });

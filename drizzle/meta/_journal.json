@@ -29,6 +29,13 @@
       "when": 1785740320000,
       "tag": "0003_procurement_orders_workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1785741500000,
+      "tag": "0004_order_bound_documents_files",
+      "breakpoints": true
     }
   ]
 }

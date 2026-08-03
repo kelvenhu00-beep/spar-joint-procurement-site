@@ -9,6 +9,7 @@ type View =
   | "documents"
   | "aiReview"
   | "procurement"
+  | "orderDetail"
   | "progress"
   | "intention"
   | "intentionAdmin"
@@ -112,6 +113,7 @@ type FileUploadRow = {
   id: string;
   requirementId: string;
   productId: string;
+  orderId: string | null;
   businessNo: string;
   originalFileName: string;
   storageKey: string;
@@ -130,9 +132,11 @@ type BusinessDocumentRow = {
   documentType: string;
   productId: string | null;
   productName: string | null;
+  orderId: string | null;
   enterpriseId: string | null;
   enterpriseName: string | null;
   purchaseIntentionId: string | null;
+  fileUploadId: string | null;
   stage: string;
   title: string;
   status: string;
@@ -169,6 +173,26 @@ type ProcurementOrderRow = {
   customsDeclarationNo: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+type ProcurementOrderEventRow = {
+  id: string;
+  orderId: string;
+  fromStage: string | null;
+  toStage: string;
+  action: string;
+  actorType: string;
+  actorId: string;
+  note: string;
+  metadataJson: string;
+  createdAt: string;
+};
+
+type OrderWorkflowStage = {
+  stage: string;
+  label: string;
+  requiredDocuments: string[];
+  progress: number;
 };
 
 type AccountListRow = {
@@ -1456,12 +1480,14 @@ function ProcurementProgress({
   productCatalog,
   setView,
   setSelectedId,
+  setSelectedOrderId,
 }: {
   portal: Portal;
   operatorRole: OperatorRole;
   productCatalog: Product[];
   setView: (view: View) => void;
   setSelectedId: (id: string) => void;
+  setSelectedOrderId: (id: string) => void;
 }) {
   const isBuyer = portal === "buyer";
   const [orders, setOrders] = useState<ProcurementOrderRow[]>([]);
@@ -1591,6 +1617,10 @@ function ProcurementProgress({
                 isBuyer={isBuyer}
                 operatorRole={operatorRole}
                 onAdvance={() => advanceOrder(order)}
+                onOrderDetail={() => {
+                  setSelectedOrderId(order.id);
+                  setView("orderDetail");
+                }}
                 onDetail={() => {
                   setSelectedId(order.productId);
                   setView("detail");
@@ -1636,6 +1666,7 @@ function ProcurementRow({
   isBuyer,
   operatorRole,
   onAdvance,
+  onOrderDetail,
   onDetail,
 }: {
   order: ProcurementOrderRow;
@@ -1643,6 +1674,7 @@ function ProcurementRow({
   isBuyer: boolean;
   operatorRole: OperatorRole;
   onAdvance: () => void;
+  onOrderDetail: () => void;
   onDetail: () => void;
 }) {
   const percent = order.progress;
@@ -1662,9 +1694,239 @@ function ProcurementRow({
       <div>
         <div className="inline-action-group">
           <button className="plain-link inline-action" type="button" onClick={onDetail}>商品</button>
+          <button className="plain-link inline-action" type="button" onClick={onOrderDetail}>订单</button>
           {!isBuyer ? <button className="plain-link inline-action" type="button" onClick={onAdvance} disabled={!canAdvance}>{order.nextStage ? "推进" : "完成"}</button> : null}
         </div>
       </div>
+    </>
+  );
+}
+
+function OrderDetailPage({
+  orderId,
+  portal,
+  operatorRole,
+  productCatalog,
+  setView,
+  setSelectedId,
+}: {
+  orderId: string | null;
+  portal: Portal;
+  operatorRole: OperatorRole;
+  productCatalog: Product[];
+  setView: (view: View) => void;
+  setSelectedId: (id: string) => void;
+}) {
+  const isBuyer = portal === "buyer";
+  const [order, setOrder] = useState<ProcurementOrderRow | null>(null);
+  const [workflow, setWorkflow] = useState<OrderWorkflowStage[]>([]);
+  const [documents, setDocuments] = useState<BusinessDocumentRow[]>([]);
+  const [uploads, setUploads] = useState<FileUploadRow[]>([]);
+  const [events, setEvents] = useState<ProcurementOrderEventRow[]>([]);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [actionState, setActionState] = useState("");
+
+  const loadOrder = () => {
+    if (!orderId) {
+      setLoadState("error");
+      return;
+    }
+    setLoadState("loading");
+    fetch(`/api/orders/?id=${encodeURIComponent(orderId)}`)
+      .then(async (response) => {
+        const data = (await response.json()) as {
+          order?: ProcurementOrderRow;
+          workflow?: OrderWorkflowStage[];
+          documents?: BusinessDocumentRow[];
+          uploads?: FileUploadRow[];
+          events?: ProcurementOrderEventRow[];
+          error?: string;
+        };
+        if (!response.ok || !data.order) throw new Error(data.error ?? "订单详情加载失败");
+        setOrder(data.order);
+        setWorkflow(data.workflow ?? []);
+        setDocuments(data.documents ?? []);
+        setUploads(data.uploads ?? []);
+        setEvents(data.events ?? []);
+        setLoadState("ready");
+      })
+      .catch(() => setLoadState("error"));
+  };
+
+  useEffect(() => {
+    loadOrder();
+  }, [orderId]);
+
+  const reviewFile = async (id: string, action: "ai_pass" | "ai_warning" | "approve" | "request_changes" | "reject") => {
+    setActionState("正在处理订单文件...");
+    try {
+      const response = await fetch("/api/files/", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id,
+          action,
+          actorRole: operatorRole,
+          summary: action === "approve" ? "总监确认订单阶段文件可归档。" : "按订单详情页处理文件状态。",
+        }),
+      });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "文件处理失败");
+      setActionState("订单文件状态已更新。");
+      loadOrder();
+    } catch (error) {
+      setActionState(error instanceof Error ? error.message : "文件处理失败");
+    }
+  };
+
+  if (loadState === "loading") {
+    return <section className="panel order-detail-panel"><h2>正在加载订单详情...</h2></section>;
+  }
+
+  if (loadState === "error" || !order) {
+    return (
+      <>
+        <PageTitle title="订单详情" subtitle="当前订单无法加载" />
+        <section className="panel order-detail-panel">
+          <p>订单不存在、当前账号无权查看，或接口暂时不可用。</p>
+          <button className="primary-button" type="button" onClick={() => setView("procurement")}>返回采购履约</button>
+        </section>
+      </>
+    );
+  }
+
+  const product = productCatalog.find((item) => item.id === order.productId);
+  const currentStage = workflow.find((stage) => stage.stage === order.currentStage);
+
+  return (
+    <>
+      <PageTitle title={order.orderNo} subtitle={`${order.productName ?? order.productId} · ${order.enterpriseName ?? order.enterpriseId} · ${order.stageLabel}`} />
+      <section className="order-detail-hero panel">
+        <div className="project-cell">
+          {product ? <ProductImage product={product} size="thumb" /> : <span className="fallback-product-icon">▧</span>}
+          <span>
+            <strong>{order.productName ?? order.productId}</strong>
+            <small>{order.containerType} · {order.quantityBoxes} 箱 · {order.receivingRegion}</small>
+          </span>
+        </div>
+        <div className="order-kpi-grid">
+          <Spec label="当前阶段" value={order.stageLabel} />
+          <Spec label="整体进度" value={`${order.progress}%`} />
+          <Spec label="确认到仓成本" value={order.confirmedUnitCostCny ? `¥ ${order.confirmedUnitCostCny.toFixed(2)} / 箱` : "待确认"} />
+          <Spec label="订单金额" value={order.totalAmountCny ? `¥ ${order.totalAmountCny.toLocaleString()}` : "待确认"} />
+          <Spec label="到货窗口" value={order.expectedArrivalWindow} />
+          <Spec label="柜号 / 封签" value={`${order.containerNo ?? "待录入"} / ${order.sealNo ?? "待录入"}`} />
+        </div>
+        <div className="card-actions detail-actions">
+          <button className="outline-button" type="button" onClick={() => setView("procurement")}>返回履约列表</button>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => {
+              setSelectedId(order.productId);
+              setView("detail");
+            }}
+          >
+            查看商品资料
+          </button>
+        </div>
+      </section>
+
+      {actionState ? <div className="operation-result">{actionState}</div> : null}
+
+      <section className="order-detail-layout">
+        <article className="panel order-stage-panel">
+          <div className="panel-head">
+            <div>
+              <h2>订单阶段文件</h2>
+              <p>{currentStage ? `当前节点需要：${currentStage.requiredDocuments.join("、")}` : "按履约节点管理文件和单据"}</p>
+            </div>
+            <StatusPill status={order.stageLabel} />
+          </div>
+          <div className="order-stage-list">
+            {workflow.map((stage, index) => {
+              const stageDocuments = documents.filter((document) => document.stage === stage.label);
+              const stageUploadIds = new Set(stageDocuments.map((document) => document.fileUploadId).filter(Boolean));
+              const stageUploads = uploads.filter((upload) => stageUploadIds.has(upload.id));
+              const canUpload = !isBuyer && operatorRole === "manager" && stage.stage === order.currentStage;
+              return (
+                <article className={`order-stage-card ${stage.stage === order.currentStage ? "active" : ""}`} key={stage.stage}>
+                  <div className="stage-index">{index + 1}</div>
+                  <div className="stage-body">
+                    <div className="stage-title-line">
+                      <div>
+                        <h3>{stage.label}</h3>
+                        <p>必备文件：{stage.requiredDocuments.join("、")}</p>
+                      </div>
+                      <StatusPill status={stage.stage === order.currentStage ? "当前节点" : stage.progress < order.progress ? "已生成" : "未到节点"} />
+                    </div>
+                    <div className="stage-file-tags">
+                      {stage.requiredDocuments.map((fileType) => {
+                        const matchedDocument = stageDocuments.find((document) => document.documentType === fileType);
+                        return <span key={fileType}>{fileType} · {matchedDocument?.status ?? "待上传"}</span>;
+                      })}
+                    </div>
+                    {canUpload ? (
+                      <div className="stage-upload-slot">
+                        <FileUploadForm
+                          product={product ?? productCatalog[0]}
+                          order={order}
+                          stage={{
+                            stage: stage.label,
+                            timing: "当前订单节点",
+                            owner: "商品运营经理",
+                            files: stage.requiredDocuments,
+                            status: "经理补资料中",
+                            buyerStatus: "状态可见",
+                            note: "订单详情页上传，文件会绑定当前采购项目。",
+                          }}
+                          sequence={index + 1}
+                          onUploaded={loadOrder}
+                        />
+                      </div>
+                    ) : null}
+                    {stageUploads.length ? (
+                      <div className="order-upload-lines">
+                        {stageUploads.map((upload) => (
+                          <div className="uploaded-file-line" key={upload.id}>
+                            <span>{upload.originalFileName}</span>
+                            <small>{upload.businessNo} · {Math.round(upload.sizeBytes / 1024)} KB</small>
+                            <StatusPill status={upload.manualReviewStatus} />
+                            {!isBuyer && operatorRole === "director" ? <button className="plain-link inline-action" type="button" onClick={() => reviewFile(upload.id, "approve")}>复核通过</button> : null}
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </article>
+
+        <aside className="order-side">
+          <section className="panel">
+            <h2>订单单据</h2>
+            {documents.length === 0 ? <p className="empty-note">暂无订单单据。</p> : null}
+            {documents.slice(0, 8).map((document) => (
+              <div className="checkline" key={document.id}>
+                <span>{document.documentType}</span>
+                <StatusPill status={document.status} />
+              </div>
+            ))}
+          </section>
+          <section className="panel">
+            <h2>履约时间线</h2>
+            {events.map((event) => (
+              <div className="timeline-item" key={event.id}>
+                <time>{event.createdAt}</time>
+                <strong>{event.action}</strong>
+                <span>{event.note || `${event.fromStage ?? "新建"} → ${event.toStage}`}</span>
+              </div>
+            ))}
+          </section>
+        </aside>
+      </section>
     </>
   );
 }
@@ -2814,17 +3076,19 @@ function ProductFlowFilePanel({
 
 function FileUploadForm({
   product,
+  order,
   stage,
   sequence,
   onUploaded,
 }: {
   product: Product;
+  order?: ProcurementOrderRow;
   stage: (typeof productFlowFiles)[number];
   sequence: number;
   onUploaded: () => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
-  const [businessNo, setBusinessNo] = useState(`SKU-${product.id.toUpperCase()}-${sequence}`);
+  const [businessNo, setBusinessNo] = useState(order?.orderNo ?? `SKU-${product.id.toUpperCase()}-${sequence}`);
   const [requiredFileType, setRequiredFileType] = useState(stage.files[0] ?? "流程文件");
   const [message, setMessage] = useState("");
 
@@ -2836,6 +3100,7 @@ function FileUploadForm({
     setMessage("正在上传文件...");
     const formData = new FormData();
     formData.set("productId", product.id);
+    if (order) formData.set("orderId", order.id);
     formData.set("stage", stage.stage);
     formData.set("requiredFileType", requiredFileType);
     formData.set("ownerRole", stage.owner);
@@ -2975,6 +3240,7 @@ export default function Home() {
   const [operationNotice, setOperationNotice] = useState("");
   const [productCatalog, setProductCatalog] = useState<Product[]>(products);
   const [selectedId, setSelectedId] = useState(products[0].id);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const selectedProduct = useMemo(() => productCatalog.find((product) => product.id === selectedId) ?? productCatalog[0] ?? products[0], [productCatalog, selectedId]);
 
   const loadProducts = () => {
@@ -3037,7 +3303,8 @@ export default function Home() {
       {view === "catalog" ? <Catalog portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} reloadProducts={loadProducts} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "documents" ? <FileCenterPage portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "aiReview" ? <AiReviewPage operatorRole={operatorRole} setView={setView} /> : null}
-      {view === "procurement" ? <ProcurementProgress portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} setView={setView} setSelectedId={setSelectedId} /> : null}
+      {view === "procurement" ? <ProcurementProgress portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} setView={setView} setSelectedId={setSelectedId} setSelectedOrderId={setSelectedOrderId} /> : null}
+      {view === "orderDetail" ? <OrderDetailPage orderId={selectedOrderId} portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "progress" ? <ProgressBoard portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "intention" ? <IntentionForm selectedProduct={selectedProduct} setView={setView} /> : null}
       {view === "intentionAdmin" ? <IntentionAdminPage operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}

@@ -7,6 +7,7 @@ import { getCurrentUser } from "../_auth";
 type DocumentPayload = {
   documentType?: string;
   productId?: string;
+  orderId?: string;
   enterpriseId?: string;
   purchaseIntentionId?: string;
   stage?: string;
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const productId = searchParams.get("productId")?.trim();
+    const orderId = searchParams.get("orderId")?.trim();
     const db = getDb();
 
     let rows = await db
@@ -44,9 +46,11 @@ export async function GET(request: Request) {
         documentType: businessDocuments.documentType,
         productId: businessDocuments.productId,
         productName: products.cnName,
+        orderId: businessDocuments.orderId,
         enterpriseId: businessDocuments.enterpriseId,
         enterpriseName: enterprises.shortName,
         purchaseIntentionId: businessDocuments.purchaseIntentionId,
+        fileUploadId: businessDocuments.fileUploadId,
         stage: businessDocuments.stage,
         title: businessDocuments.title,
         status: businessDocuments.status,
@@ -69,6 +73,9 @@ export async function GET(request: Request) {
 
     if (productId) {
       rows = rows.filter((row) => row.productId === productId);
+    }
+    if (orderId) {
+      rows = rows.filter((row) => row.orderId === orderId);
     }
     if (user.userType === "enterprise_user") {
       rows = rows.filter((row) => row.enterpriseId === user.enterpriseId && row.visibility !== "internal");
@@ -115,6 +122,7 @@ export async function POST(request: Request) {
         documentNo: documentNo(documentType),
         documentType,
         productId: payload.productId?.trim() || null,
+        orderId: payload.orderId?.trim() || null,
         enterpriseId: payload.enterpriseId?.trim() || null,
         purchaseIntentionId: payload.purchaseIntentionId?.trim() || null,
         stage,

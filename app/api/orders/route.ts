@@ -4,6 +4,7 @@ import {
   auditLogs,
   businessDocuments,
   enterprises,
+  fileUploads,
   procurementOrderEvents,
   procurementOrders,
   products,
@@ -105,6 +106,7 @@ async function createStageDocuments(params: {
       documentNo: `${params.orderNo}-${documentType}-${makeId("").replace("_", "").slice(0, 4).toUpperCase()}`,
       documentType,
       productId: params.productId,
+      orderId: params.orderId,
       enterpriseId: params.enterpriseId,
       purchaseIntentionId: params.purchaseIntentionId,
       stage: stageLabels[params.stage],
@@ -123,6 +125,8 @@ export async function GET(request: Request) {
     const user = await getCurrentUser(request);
     if (!user) return Response.json({ error: "请先登录。" }, { status: 401 });
 
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id")?.trim();
     const db = getDb();
     let rows = await db
       .select({
@@ -157,6 +161,35 @@ export async function GET(request: Request) {
 
     if (user.userType === "enterprise_user") {
       rows = rows.filter((row) => row.enterpriseId === user.enterpriseId);
+    }
+
+    if (id) {
+      const order = rows.find((row) => row.id === id);
+      if (!order) return Response.json({ error: "采购项目不存在或当前账号无权查看。" }, { status: 404 });
+
+      const [events, documents, uploads] = await Promise.all([
+        db.select().from(procurementOrderEvents).where(eq(procurementOrderEvents.orderId, id)).orderBy(desc(procurementOrderEvents.createdAt)),
+        db.select().from(businessDocuments).where(eq(businessDocuments.orderId, id)).orderBy(desc(businessDocuments.createdAt)),
+        db.select().from(fileUploads).where(eq(fileUploads.orderId, id)).orderBy(desc(fileUploads.uploadedAt)),
+      ]);
+
+      return Response.json({
+        order: {
+          ...order,
+          stageLabel: stageLabels[order.currentStage as WorkflowStage] ?? order.currentStage,
+          progress: progressOfStage(order.currentStage),
+          nextStage: nextStageOf(order.currentStage),
+        },
+        workflow: workflowStages.map((stage, index) => ({
+          stage,
+          label: stageLabels[stage],
+          requiredDocuments: stageRequiredDocuments[stage],
+          progress: Math.round(((index + 1) / workflowStages.length) * 100),
+        })),
+        events,
+        documents: user.userType === "enterprise_user" ? documents.filter((document) => document.visibility !== "internal") : documents,
+        uploads: user.userType === "enterprise_user" ? [] : uploads,
+      });
     }
 
     return Response.json({

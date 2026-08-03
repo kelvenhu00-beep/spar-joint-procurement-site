@@ -37,4 +37,5 @@ test("source includes real implementation entry points", () => {
   assert.ok(statSync(join(root, "drizzle", "0001_seed_initial_data.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0002_accounts_documents_sessions.sql")).isFile());
   assert.ok(statSync(join(root, "drizzle", "0003_procurement_orders_workflow.sql")).isFile());
+  assert.ok(statSync(join(root, "drizzle", "0004_order_bound_documents_files.sql")).isFile());
 });
