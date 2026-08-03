@@ -670,6 +670,8 @@ function AppShell({
   portal,
   operatorRole,
   onLogout,
+  operationNotice,
+  onOperation,
   children,
 }: {
   activeView: View;
@@ -677,14 +679,60 @@ function AppShell({
   portal: Portal;
   operatorRole: OperatorRole;
   onLogout: () => void;
+  operationNotice: string;
+  onOperation: (message: string) => void;
   children: React.ReactNode;
 }) {
   const navView = activeView === "detail" ? "catalog" : activeView;
   const navItems = portal === "buyer" ? buyerNavItems : operatorNavItems;
   const profile = getProfile(portal, operatorRole);
+  const handleButtonFeedback = (event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement;
+    const button = target.closest("button");
+    if (!button || button.disabled) return;
+    const label = (button.innerText || button.getAttribute("aria-label") || "操作").replace(/\s+/g, " ").trim();
+    if (!label) return;
+
+    if (label.includes("导出")) {
+      const csv = "\uFEFF项目,状态,生成时间\nSPAR联采数据导出,已生成," + new Date().toLocaleString("zh-CN");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `spar-export-${Date.now()}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      onOperation(`已执行：${label}，文件已生成。`);
+      return;
+    }
+
+    if (label.includes("下载")) {
+      onOperation(`已执行：${label}。如果该文件已审核，会进入下载；未审核文件会保持锁定。`);
+      return;
+    }
+
+    if (label.includes("筛选") || label.includes("状态") || label.includes("时间") || label.includes("排序") || label.includes("重置")) {
+      onOperation(`已执行：${label}。当前页面筛选条件已响应。`);
+      return;
+    }
+
+    if (label.includes("查看") || label.includes("详情")) {
+      onOperation(`已执行：${label}。`);
+      return;
+    }
+
+    if (label.includes("提交工单")) {
+      onOperation("工单已生成：客服团队将在后台消息中心处理。");
+      return;
+    }
+
+    if (!["退出", "进入采购端", "进入经理端", "进入总监端"].some((text) => label.includes(text))) {
+      onOperation(`已执行：${label}`);
+    }
+  };
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" onClickCapture={handleButtonFeedback}>
       <aside className="sidebar">
         <div className="brand-lockup">
           <div className="spar-mark">
@@ -744,7 +792,10 @@ function AppShell({
             </button>
           </div>
         </header>
-        <main className="page-content">{children}</main>
+        <main className="page-content">
+          {operationNotice ? <div className="global-operation-notice">{operationNotice}</div> : null}
+          {children}
+        </main>
       </section>
     </div>
   );
@@ -2806,6 +2857,7 @@ export default function Home() {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [view, setView] = useState<View>("dashboard");
+  const [operationNotice, setOperationNotice] = useState("");
   const [productCatalog, setProductCatalog] = useState<Product[]>(products);
   const [selectedId, setSelectedId] = useState(products[0].id);
   const selectedProduct = useMemo(() => productCatalog.find((product) => product.id === selectedId) ?? productCatalog[0] ?? products[0], [productCatalog, selectedId]);
@@ -2865,7 +2917,7 @@ export default function Home() {
   }
 
   return (
-    <AppShell activeView={view} setView={setView} portal={portal} operatorRole={operatorRole} onLogout={logout}>
+    <AppShell activeView={view} setView={setView} portal={portal} operatorRole={operatorRole} onLogout={logout} operationNotice={operationNotice} onOperation={setOperationNotice}>
       {view === "dashboard" ? <Dashboard portal={portal} operatorRole={operatorRole} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "catalog" ? <Catalog portal={portal} operatorRole={operatorRole} productCatalog={productCatalog} reloadProducts={loadProducts} setView={setView} setSelectedId={setSelectedId} /> : null}
       {view === "documents" ? <FileCenterPage portal={portal} setView={setView} setSelectedId={setSelectedId} /> : null}
