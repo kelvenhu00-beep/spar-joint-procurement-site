@@ -25,7 +25,9 @@ npm run dev
 `npm run build` 用于验证生产构建产物；`npm run db:migrate:local` 需要在每次清空
 `.wrangler/state`（本地 D1/R2 持久化目录）之后重新执行一次。
 
-This starter does not use `wrangler.jsonc`.
+本地开发（`npm run dev`）走 `vite.config.ts` 里内嵌的绑定配置，不依赖仓库根目录的
+`wrangler.jsonc`；根目录的 `wrangler.jsonc` 仅用于 Cloudflare 部署管道识别
+D1/R2 绑定并生产构建/发布。
 
 ## 演示账号
 
