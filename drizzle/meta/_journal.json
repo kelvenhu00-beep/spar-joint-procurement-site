@@ -71,6 +71,13 @@
       "when": 1785750600000,
       "tag": "0009_signed_settlement_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1785752400000,
+      "tag": "0010_seed_demo_passwords",
+      "breakpoints": true
     }
   ]
 }
